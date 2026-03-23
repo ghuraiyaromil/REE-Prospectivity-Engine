@@ -1,0 +1,28 @@
+# Large data files
+*.tar
+*.zip
+*.tif
+*.tiff
+*.ers
+*.img
+*.ecw
+*.jp2
+*.shp
+*.dbf
+*.shx
+*.prj
+# Large output CSVs
+scored_data.csv
+grid_predictions.csv
+master_drillholes.csv
+feature_matrix.csv
+inventory_report.txt
+# Python cache
+__pycache__/
+*.py[cod]
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+# Logs
+*.log
