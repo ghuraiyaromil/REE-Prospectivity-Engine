@@ -162,11 +162,13 @@ class DrillholeProcessor:
                 except Exception:
                     pass
 
-            # Numeric conversion
-            all_ree = [c for c in self.REE_OXIDE + self.PATHFINDER
-                       if c in assay.columns]
-            for c in all_ree + ["fromdepth","todepth"]:
-                if c in assay.columns:
+            # Numeric conversion — ALL non-text columns before groupby
+            _skip = {join_col,"companysampleid","anumber","attributecolumn",
+                     "attributevalue","units","labmethod","element","dsc","hanalyte"}
+            all_ree = [c for c in self.REE_OXIDE + self.PATHFINDER if c in assay.columns]
+            auto_ppm = [c for c in assay.columns if c.endswith("_ppm") and c not in all_ree]
+            for c in assay.columns:
+                if c not in _skip:
                     assay[c] = pd.to_numeric(assay[c], errors="coerce")
 
             # Also detect element columns automatically
@@ -215,6 +217,30 @@ class DrillholeProcessor:
 
             master = master.merge(assay_agg, left_on=id_col,
                                   right_on=join_col, how="left")
+
+        # ── Extra geochemistry file (dh_geochemistry.csv) ────
+        geochem_path = getattr(self, 'geochem_path', None)
+        if geochem_path:
+            try:
+                geo2 = pd.read_csv(str(geochem_path), low_memory=False)
+                geo2 = self._standardise_columns(geo2)
+                geo2_id = next((c for c in geo2.columns
+                                if "collarid" in c or "holeid" in c), None)
+                if geo2_id and "attributecolumn" in geo2.columns:
+                    g2p = geo2.pivot_table(
+                        index=geo2_id, columns="attributecolumn",
+                        values="attributevalue", aggfunc="max"
+                    ).reset_index()
+                    g2p.columns = [str(c).lower()+"_geo"
+                                   if c != geo2_id else c for c in g2p.columns]
+                    for c in g2p.columns:
+                        if c != geo2_id:
+                            g2p[c] = pd.to_numeric(g2p[c], errors="coerce")
+                    master = master.merge(g2p, left_on=id_col,
+                                          right_on=geo2_id, how="left")
+                    print(f"    dh_geochemistry joined: {len(g2p)} rows")
+            except Exception as e:
+                print(f"    dh_geochemistry skipped: {e}")
 
         # ── Alteration ────────────────────────────────────────
         if self.alteration_path:
@@ -269,9 +295,15 @@ class DrillholeProcessor:
                                              np.int64, np.int32, float, int]
                      and master[c].notna().sum() > 0]
 
-        treo_col  = next((c for c in master.columns
-                          if "treo" in c and "max" in c), None)
-        n_labelled= int(master[treo_col].notna().sum()) if treo_col else 0
+        treo_col = next((c for c in master.columns if "treo" in c and "max" in c), None)
+        if not treo_col:
+            treo_col = next((c for c in master.columns if c == "treo"), None)
+        if not treo_col:
+            treo_col = next((c for c in master.columns
+                             if any(k in c for k in ["treo","total_ree"])
+                             and master[c].notna().sum() > 0), None)
+        n_labelled = int(master[treo_col].notna().sum()) if treo_col else 0
+        print(f"    TREO column: {treo_col}  non-null: {n_labelled}/{len(master)}")
 
         return master, feat_cols, treo_col, n_labelled
 
@@ -364,19 +396,28 @@ class GeoAIPipeline:
 
         # ── STEP 2: Process drillhole data ────────────────────
         log("Step 2: Processing drillhole data...")
-        collar_files = groups["drillhole"]
+        geochem_extra = None
+        # Include geochemical CSVs that are drillhole-related
+        dh_geochem = [f for f in groups["geochemical"]
+                      if any(k in Path(f).stem.lower()
+                             for k in ["dh_","geochem","assay","alter"])]
+        collar_files = groups["drillhole"] + dh_geochem
         assay_file   = None
         collar_file  = None
         alt_file     = None
 
         for f in collar_files:
             name = Path(f).stem.lower()
-            if any(k in name for k in ["collar","hole","location","survey"]):
+            if "collar" in name:
                 collar_file = f
-            elif any(k in name for k in ["assay","pivot","geochem","element"]):
+            elif "pivot" in name or ("assay" in name and "pivot" in name):
                 assay_file = f
-            elif any(k in name for k in ["alter","lith","geology","rock"]):
+            elif "assay" in name and not assay_file:
+                assay_file = f
+            elif "alter" in name:
                 alt_file = f
+            elif "geochem" in name and "assay" not in name:
+                geochem_extra = f
 
         # Fallback: first file is collar
         if not collar_file and collar_files:
@@ -393,6 +434,7 @@ class GeoAIPipeline:
             n_labelled = 0
         else:
             proc = DrillholeProcessor(collar_file, assay_file, alt_file)
+            proc.geochem_path = geochem_extra
             master, feat_cols, treo_col, n_labelled = proc.process()
             log(f"  Holes: {len(master)}  |  Labelled: {n_labelled}  |  Features: {len(feat_cols)}")
 
