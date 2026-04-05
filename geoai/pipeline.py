@@ -217,8 +217,11 @@ class DrillholeProcessor:
             assay_agg.columns = ["_".join(c) for c in assay_agg.columns]
             assay_agg = assay_agg.reset_index()
 
-            master = master.merge(assay_agg, left_on=id_col,
-                                  right_on=join_col, how="left")
+            # Cast both join keys to string to avoid int64/object type mismatch
+           master[id_col]      = master[id_col].astype(str).str.strip()
+           assay_agg[join_col] = assay_agg[join_col].astype(str).str.strip()
+           master = master.merge(assay_agg, left_on=id_col,
+                                 right_on=join_col, how="left")
 
         # ── Extra geochemistry file (dh_geochemistry.csv) ────
         geochem_path = getattr(self, 'geochem_path', None)
