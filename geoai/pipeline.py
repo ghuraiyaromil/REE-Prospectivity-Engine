@@ -163,12 +163,14 @@ class DrillholeProcessor:
                     pass
 
             # Numeric conversion — ALL non-text columns before groupby
-            _skip = {join_col,"companysampleid","anumber","attributecolumn",
-                     "attributevalue","units","labmethod","element","dsc","hanalyte"}
+            # join_col detected below — use text keywords directly here
+            _skip_kw = {"companysampleid","anumber","attributecolumn",
+                        "attributevalue","units","labmethod","element","dsc","hanalyte"}
             all_ree = [c for c in self.REE_OXIDE + self.PATHFINDER if c in assay.columns]
             auto_ppm = [c for c in assay.columns if c.endswith("_ppm") and c not in all_ree]
             for c in assay.columns:
-                if c not in _skip:
+                if c not in _skip_kw and not any(k in c for k in
+                        ["holeid","collarid","sampleid","anumber","company"]):
                     assay[c] = pd.to_numeric(assay[c], errors="coerce")
 
             # Also detect element columns automatically
