@@ -421,6 +421,7 @@ if uploaded:
             result = pipe.run(
                 files=fps,
                 deposit_name=dep_name.strip() or None,
+                inference_only=True,
                 progress_cb=upd_log,
             )
         except Exception as e:
