@@ -1,0 +1,16 @@
+{
+  "deposits": {
+    "mount_weld": {
+      "versions": [
+        {
+          "date": "2026-04-11 03:28",
+          "bundle_path": "C:\\GeoAI_repo\\outputs\\ree_model_bundle_mount_weld_20260411_0328.joblib",
+          "n_holes": 119,
+          "cv_r2": 0.7717,
+          "roc_auc": 0.9324
+        }
+      ]
+    }
+  },
+  "global_model": "C:\\GeoAI_repo\\outputs\\ree_model_bundle_mount_weld_20260411_0328.joblib"
+}

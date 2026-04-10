@@ -22,8 +22,14 @@ class DepositRegistry:
 
     def _load(self):
         if self.path.exists():
-            return json.loads(self.path.read_text(encoding="utf-8"))
+            try:
+                return json.loads(self.path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
         return {"deposits": {}, "global_model": None}
+    
+    def reload(self):
+        self.data = self._load()
 
     def save(self):
         self.path.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
@@ -118,9 +124,9 @@ class DrillholeProcessor:
         collar = pd.read_csv(str(self.collar_path), low_memory=False)
         collar = self._standardise_columns(collar)
 
-        # Find ID column
-        id_col = next((c for c in collar.columns if "holeid" in c or "hole_id" in c
-                       or "companyhole" in c or c in ["id","holeid"]), collar.columns[0])
+        # Find ID column - Prioritise company-specific IDs
+        id_priority = ["companyholeid", "companyhole", "holeid", "hole_id", "id"]
+        id_col = next((c for p in id_priority for c in collar.columns if p == c.lower()), collar.columns[0])
 
         # Coordinates
         lat_col, lon_col, east_col, north_col = self._detect_coord_columns(collar)
@@ -166,41 +172,49 @@ class DrillholeProcessor:
             # join_col detected below — use text keywords directly here
             _skip_kw = {"companysampleid","anumber","attributecolumn",
                         "attributevalue","units","labmethod","element","dsc","hanalyte"}
-            all_ree = [c for c in self.REE_OXIDE + self.PATHFINDER if c in assay.columns]
-            auto_ppm = [c for c in assay.columns if c.endswith("_ppm") and c not in all_ree]
+            # Case-insensitive element detection
+            ree_p_list = [o.lower() for o in self.REE_OXIDE + self.PATHFINDER]
+            all_ree = [c for c in assay.columns if c.lower() in ree_p_list]
+            auto_ppm = [c for c in assay.columns if c.lower().endswith("_ppm") and c not in all_ree]
             for c in assay.columns:
                 if c not in _skip_kw and not any(k in c for k in
                         ["holeid","collarid","sampleid","anumber","company"]):
                     assay[c] = pd.to_numeric(assay[c], errors="coerce")
 
-            # Also detect element columns automatically
-            auto_ppm = [c for c in assay.columns
-                        if c.endswith("_ppm") and c not in all_ree]
-            for c in auto_ppm:
+            # Ensure all relevant cols are numeric
+            for c in all_ree + auto_ppm:
                 assay[c] = pd.to_numeric(assay[c], errors="coerce")
-            all_ree = all_ree + auto_ppm
-
+            all_ree = list(set(all_ree + auto_ppm))
+            
             # Compute TREO
-            treo_parts = [c for c in self.REE_OXIDE if c in assay.columns]
+            treo_parts = [c for c in assay.columns if c.lower() in [o.lower() for o in self.REE_OXIDE]]
             if treo_parts:
-                assay["treo"] = assay[treo_parts].sum(axis=1, skipna=True)
+                assay["treo"] = assay[treo_parts].apply(pd.to_numeric, errors="coerce").sum(axis=1, skipna=True)
                 assay.loc[assay[treo_parts].isna().all(axis=1), "treo"] = np.nan
+            
+            # Additional derived indicators for LREE/HREE using case-insensitive search
+            lree_k = [o.lower() for o in ["ceo2_ppm","la2o3_ppm","nd2o3_ppm","pr6o11_ppm","sm2o3_ppm"]]
+            hree_k = [o.lower() for o in ["gd2o3_ppm","dy2o3_ppm","y2o3_ppm","er2o3_ppm","yb2o3_ppm"]]
+            lree_c = [c for c in assay.columns if c.lower() in lree_k]
+            hree_c = [c for c in assay.columns if c.lower() in hree_k]
 
-            # LREE / HREE
-            lree_c = [c for c in ["ceo2_ppm","la2o3_ppm","nd2o3_ppm","pr6o11_ppm","sm2o3_ppm"]
-                      if c in assay.columns]
-            hree_c = [c for c in ["gd2o3_ppm","dy2o3_ppm","y2o3_ppm","er2o3_ppm","yb2o3_ppm"]
-                      if c in assay.columns]
-            if lree_c: assay["lree"] = assay[lree_c].sum(axis=1, skipna=True)
-            if hree_c: assay["hree"] = assay[hree_c].sum(axis=1, skipna=True)
-            if lree_c and hree_c:
+            if lree_c: assay["lree"] = assay[lree_c].apply(pd.to_numeric, errors="coerce").sum(axis=1, skipna=True)
+            if hree_c: assay["hree"] = assay[hree_c].apply(pd.to_numeric, errors="coerce").sum(axis=1, skipna=True)
+            if "lree" in assay.columns and "hree" in assay.columns:
                 assay["lree_hree_ratio"] = assay["lree"] / (assay["hree"] + 0.001)
-            if "ceo2_ppm" in assay.columns and "la2o3_ppm" in assay.columns:
-                assay["ce_la_ratio"] = assay["ceo2_ppm"] / (assay["la2o3_ppm"] + 1)
-            if "p2o5_ppm" in assay.columns and "fe2o3_ppm" in assay.columns:
-                assay["p_fe_ratio"] = assay["p2o5_ppm"] / (assay["fe2o3_ppm"] + 1)
-            if "tho2_ppm" in assay.columns and "u3o8_ppm" in assay.columns:
-                assay["th_u_ratio"] = assay["tho2_ppm"] / (assay["u3o8_ppm"] + 0.001)
+
+            # Element Ratios
+            def _get_col(df, kw):
+                return next((c for c in df.columns if c.lower() == kw.lower()), None)
+
+            c1 = _get_col(assay, "ceo2_ppm"); c2 = _get_col(assay, "la2o3_ppm")
+            if c1 and c2: assay["ce_la_ratio"] = assay[c1] / (assay[c2] + 1)
+            
+            c1 = _get_col(assay, "p2o5_ppm"); c2 = _get_col(assay, "fe2o3_ppm")
+            if c1 and c2: assay["p_fe_ratio"] = assay[c1] / (assay[c2] + 1)
+            
+            c1 = _get_col(assay, "tho2_ppm"); c2 = _get_col(assay, "u3o8_ppm")
+            if c1 and c2: assay["th_u_ratio"] = assay[c1] / (assay[c2] + 0.001)
 
             derived = [c for c in ["lree_hree_ratio","ce_la_ratio","p_fe_ratio",
                                     "th_u_ratio","lree","hree","treo"] if c in assay.columns]
@@ -220,8 +234,15 @@ class DrillholeProcessor:
             # Cast both join keys to string to avoid int64/object type mismatch
             master[id_col]      = master[id_col].astype(str).str.strip()
             assay_agg[join_col] = assay_agg[join_col].astype(str).str.strip()
+            
             master = master.merge(assay_agg, left_on=id_col,
                                   right_on=join_col, how="left")
+            
+            # Re-detect treo_col after merge if it wasn't picked up before
+            _treo_cols = [c for c in master.columns if "treo" in c.lower()]
+            _treo_max = next((c for c in _treo_cols if "max" in c), None) or next((c for c in _treo_cols if "treo" == c), None)
+            if _treo_max:
+                print(f"    TREO join check: {master[_treo_max].notna().sum()} labelled")
 
         # Extra geochemistry file (dh_geochemistry.csv)
         geochem_path = getattr(self, 'geochem_path', None)
@@ -241,6 +262,11 @@ class DrillholeProcessor:
                     for c in g2p.columns:
                         if c != geo2_id:
                             g2p[c] = pd.to_numeric(g2p[c], errors="coerce")
+                    
+                    # Robust Join Key Casting
+                    master[id_col] = master[id_col].astype(str).str.strip()
+                    g2p[geo2_id]   = g2p[geo2_id].astype(str).str.strip()
+                    
                     master = master.merge(g2p, left_on=id_col,
                                           right_on=geo2_id, how="left")
                     print(f"    dh_geochemistry joined: {len(g2p)} rows")
@@ -261,6 +287,11 @@ class DrillholeProcessor:
                 alt_agg = alt.groupby(alt_id)[
                     [c for c in alt.columns if c.startswith("alt_")]
                 ].max().reset_index()
+                
+                # Robust Join Key Casting
+                master[id_col] = master[id_col].astype(str).str.strip()
+                alt_agg[alt_id] = alt_agg[alt_id].astype(str).str.strip()
+                
                 master = master.merge(alt_agg, left_on=id_col,
                                       right_on=alt_id, how="left")
 
@@ -382,6 +413,7 @@ class GeoAIPipeline:
         files: list of Path objects (any format)
         Returns: dict with results, paths, metrics
         """
+        self.registry.reload()
         def log(msg):
             print(f"  {msg}")
             if progress_cb: progress_cb(msg)

@@ -301,6 +301,9 @@ with st.sidebar:
     st.markdown("## ⛏️ Geo-AI-India")
     st.markdown("**Mineral Exploration AI**")
     st.markdown("---")
+    if st.button("🧪 INTERNAL TEST: Mount Weld", help="Directly load D:\\deposits\\mount weld"):
+        st.session_state["internal_test"] = True
+    st.markdown("---")
     st.markdown("**Accepts any format**")
     for line in [
         "Drillhole: CSV, XLS, XLSX", "Geophysics: TIF, ERS, GRD",
@@ -359,23 +362,39 @@ with col_name:
 # ═══════════════════════════════════════════════════════════════
 # MAIN PIPELINE EXECUTION
 # ═══════════════════════════════════════════════════════════════
-if uploaded:
+if uploaded or st.session_state.get("internal_test"):
     from geoai.categoriser import categorise_file
     from collections import Counter
 
     cats = []
-    for f in uploaded:
-        suf = Path(f.name).suffix
-        tmp = tempfile.NamedTemporaryFile(suffix=suf, delete=False)
-        tmp.write(f.read())
-        tmp.close()
-        r = categorise_file(tmp.name)
-        r["tmp_path"] = tmp.name
-        r["original_name"] = f.name
-        cats.append(r)
+    if st.session_state.get("internal_test"):
+        from geoai.categoriser import categorise_file
+        test_files = [
+            r"D:\deposits\mount weld\dh_collar.csv",
+            r"D:\deposits\mount weld\dh_assay_pivoted.csv"
+        ]
+        for tf in test_files:
+            r = categorise_file(tf)
+            r["tmp_path"] = tf
+            r["original_name"] = Path(tf).name
+            cats.append(r)
+        dep_name = "mount_weld_INTERNAL"
+        # Reset flag so it doesn't loop
+        st.session_state["internal_test"] = False
+    elif uploaded:
+        for f in uploaded:
+            suf = Path(f.name).suffix
+            tmp = tempfile.NamedTemporaryFile(suffix=suf, delete=False)
+            tmp.write(f.read())
+            tmp.close()
+            r = categorise_file(tmp.name)
+            r["tmp_path"] = tmp.name
+            r["original_name"] = f.name
+            cats.append(r)
 
     # Show categorisation badges
-    st.markdown(f"**{len(uploaded)} file(s) uploaded**")
+    n_files = len(uploaded) if uploaded else len(cats)
+    st.markdown(f"**{n_files} file(s) uploaded**")
     cols = st.columns(min(len(cats), 4))
     for i, r in enumerate(cats):
         bg, fg = LAYER_COLOURS.get(r["layer"], ("#333", "#eee"))
