@@ -10,8 +10,8 @@
   HOW TO USE:
     1. Install:   pip install watchdog pydrive2
     2. Run:       python watch_and_train.py
-    3. Add data:  drop a folder into D:\GeoAI-INDIA\deposits\
-                  e.g. D:\GeoAI-INDIA\deposits\browns_range\
+    3. Add data:  drop a folder into D:\deposits\
+                  e.g. D:\deposits\browns_range\
                         containing collar.csv, assay.csv, etc.
     4. Done:      pipeline trains automatically, bundle syncs to Drive
 

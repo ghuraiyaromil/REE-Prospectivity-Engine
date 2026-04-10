@@ -45,7 +45,6 @@ class DepositRegistry:
 
     def get_latest_bundle(self, name=None):
         """Get most recent bundle path — globally or for a specific deposit."""
-        import joblib
         if name and name in self.data["deposits"]:
             versions = self.data["deposits"][name]["versions"]
             if versions:
@@ -510,18 +509,37 @@ class GeoAIPipeline:
 
         log(f"  Feature matrix: {X_train.shape[0]} x {X_train.shape[1]}")
 
-                        log("  Feature schema changed — retraining fresh")
-        
+        # STEP 6: Check registry — incremental or fresh ─────
+        log("Step 6: Checking model registry for existing training data...")
+        existing_bundle = None
+        if not force_retrain:
+            existing_bundle = self.registry.get_latest_bundle()
+            if existing_bundle and existing_bundle.exists():
+                import joblib
+                bundle = joblib.load(str(existing_bundle))
+                old_feat = bundle.get("feat_cols", [])
+                if set(feat_cols) == set(old_feat):
+                    old_X = bundle.get("X_train", np.empty((0, X_train.shape[1])))
+                    old_y = bundle.get("y_train", np.array([]))
+                    if old_X.shape[1] == X_train.shape[1]:
+                        X_train = np.vstack([old_X, X_train])
+                        y_train = np.concatenate([old_y, y_train])
+                        log(f"  Appended to existing: {old_X.shape[0]} old + {n_train} new = {len(y_train)} total")
+                    else:
+                        log("  Feature mismatch with existing bundle — retraining fresh")
+                else:
+                    log("  Feature schema changed — retraining fresh")
+
         # ── INFERENCE ONLY MODE ────────────────────────────
         if inference_only:
             log("Step 7: [INFERENCE ONLY] Loading global model...")
             if not existing_bundle:
-                 existing_bundle = self.registry.get_latest_bundle()
-            
+                existing_bundle = self.registry.get_latest_bundle()
+
             if not existing_bundle or not existing_bundle.exists():
                 log("  ERROR: No trained model found in registry. Cannot run inference.")
                 return {"status": "error", "message": "No global model trained yet."}
-            
+
             import joblib
             bundle = joblib.load(str(existing_bundle))
             m_models = bundle["models"]
@@ -529,48 +547,52 @@ class GeoAIPipeline:
             scaler = bundle["scaler"]
             pca = bundle["pca"]
             p95 = bundle.get("p95_treo", 1000)
-            feat_cols = bundle["feat_cols"]
+            bundle_feat_cols = bundle["feat_cols"]
             col_order = bundle["meta_info"]["model_names"]
-            confidence = 0.9 # Default for inference
-            
-            # Re-process X_df to match bundle features
-            X_df = master[feat_cols].copy()
-            for c in feat_cols: X_df[c] = pd.to_numeric(X_df[c], errors="coerce")
+
+            # Re-build X_df using the bundle's feature columns
+            missing_feats = [c for c in bundle_feat_cols if c not in master.columns]
+            for c in missing_feats:
+                master[c] = 0.0  # Pad missing features with zeros
+            X_df = master[bundle_feat_cols].copy()
+            for c in bundle_feat_cols:
+                X_df[c] = pd.to_numeric(X_df[c], errors="coerce")
             X_df = X_df.fillna(X_df.median()).fillna(0)
-            for c in feat_cols:
-                if "_ppm" in c or "ratio" in c: 
+            for c in bundle_feat_cols:
+                if "_ppm" in c or "ratio" in c:
                     X_df[c] = np.log1p(X_df[c].clip(lower=0))
-            
-            # Jump to Step 8
+
+            # Score using global model
             log("Step 8: Scoring holes using global model...")
             X_all_s = scaler.transform(X_df.values)
             X_all_p = pca.transform(X_all_s)
             all_preds_list = []
             for k in col_order:
                 m = m_models[k]
-                p = m.predict(X_df.values if hasattr(m,"steps") else X_all_p).clip(0,1)
+                p = m.predict(X_df.values if hasattr(m, "steps") else X_all_p).clip(0, 1)
                 all_preds_list.append(p)
             meta_all = np.column_stack(all_preds_list)
-            master["prospectivity"] = meta.predict(meta_all).clip(0,1)
-            master["score_100"]     = (master["prospectivity"]*100).round(1)
-            
+            master["prospectivity"] = meta.predict(meta_all).clip(0, 1)
+            master["score_100"]     = (master["prospectivity"] * 100).round(1)
+
+            log(f"  Top score: {master['score_100'].max():.1f}/100")
             return {
                 "status":       "success",
                 "deposit":      deposit_name or "customer_upload",
                 "n_holes":      len(master),
                 "n_labelled":   0,
-                "n_features":   len(feat_cols),
+                "n_features":   len(bundle_feat_cols),
                 "cv_r2":        bundle["meta_info"]["cv_r2"],
                 "roc_auc":      bundle["meta_info"]["roc_auc"],
                 "rmse":         bundle["meta_info"]["rmse"],
                 "top_score":    float(master["score_100"].max()),
                 "master_df":    master,
-                "feat_cols":    feat_cols,
+                "feat_cols":    bundle_feat_cols,
                 "treo_col":     treo_col,
-                "model_scores": bundle.get("model_scores", {}),
+                "model_scores": bundle["meta_info"].get("model_scores", {}),
                 "confidence":   float(bundle.get("confidence", 0.9)),
-                "shap_values":  self._get_shap_values(m_models["rf"], X_train, feat_cols) if 'X_train' in locals() else {},
-                "inference_only": True
+                "shap_values":  {},
+                "inference_only": True,
             }
 
         # STEP 7: Train ─────────────────────────────────────
