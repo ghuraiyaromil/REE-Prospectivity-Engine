@@ -23,13 +23,7 @@ from pathlib import Path
 from datetime import datetime
 
 # ── CONFIG ────────────────────────────────────────────────────
-WATCH_FOLDER  = r"D:\GeoAI-INDIA\deposits"      # drop deposit folders here
-OUTPUT_DIR    = r"D:\GeoAI-INDIA\ree_output"     # model bundle saved here
-GDRIVE_FOLDER = r"C:\Users\hp\Google Drive\GeoAI_model"  # auto-upload here
-LOG_FILE      = r"D:\GeoAI-INDIA\watcher.log"
-
-# Minimum seconds between training runs (avoid rapid re-triggers)
-COOLDOWN_SECS = 120
+from geoai.config import WATCH_FOLDER, OUTPUT_DIR, GDRIVE_FOLDER, LOG_FILE, COOLDOWN_SECS
 # ──────────────────────────────────────────────────────────────
 
 logging.basicConfig(

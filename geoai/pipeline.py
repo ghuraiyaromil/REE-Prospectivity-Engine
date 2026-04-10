@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .categoriser import categorise_batch, detect_deposit_name
+from .config import OUTPUT_DIR
 
 # ══════════════════════════════════════════════════════════════
 # REGISTRY  — tracks every trained deposit
@@ -140,7 +141,7 @@ class DrillholeProcessor:
 
         master = collar.copy()
 
-        # ── Assay processing ──────────────────────────────────
+        # Assay processing ──────────────────────────────────
         if self.assay_path:
             assay = pd.read_csv(str(self.assay_path), low_memory=False)
             assay = self._standardise_columns(assay)
@@ -218,12 +219,12 @@ class DrillholeProcessor:
             assay_agg = assay_agg.reset_index()
 
             # Cast both join keys to string to avoid int64/object type mismatch
-           master[id_col]      = master[id_col].astype(str).str.strip()
-           assay_agg[join_col] = assay_agg[join_col].astype(str).str.strip()
-           master = master.merge(assay_agg, left_on=id_col,
-                                 right_on=join_col, how="left")
+            master[id_col]      = master[id_col].astype(str).str.strip()
+            assay_agg[join_col] = assay_agg[join_col].astype(str).str.strip()
+            master = master.merge(assay_agg, left_on=id_col,
+                                  right_on=join_col, how="left")
 
-        # ── Extra geochemistry file (dh_geochemistry.csv) ────
+        # Extra geochemistry file (dh_geochemistry.csv)
         geochem_path = getattr(self, 'geochem_path', None)
         if geochem_path:
             try:
@@ -247,7 +248,7 @@ class DrillholeProcessor:
             except Exception as e:
                 print(f"    dh_geochemistry skipped: {e}")
 
-        # ── Alteration ────────────────────────────────────────
+        # Alteration ────────────────────────────────────────
         if self.alteration_path:
             alt = pd.read_csv(str(self.alteration_path), low_memory=False)
             alt = self._standardise_columns(alt)
@@ -264,7 +265,7 @@ class DrillholeProcessor:
                 master = master.merge(alt_agg, left_on=id_col,
                                       right_on=alt_id, how="left")
 
-        # ── Depth score ───────────────────────────────────────
+        # Depth score ───────────────────────────────────────
         from_col = next((c for c in master.columns if "fromdepth" in c
                          and "min" in c), None) or "fromdepth"
         if from_col in master.columns:
@@ -290,7 +291,7 @@ class DrillholeProcessor:
                 ((master["lat"]-clat)*111320)**2
             ) / 500.0
 
-        # ── Identify feature columns ──────────────────────────
+        # Identify feature columns ──────────────────────────
         skip = {"lat","lon","x","y","easting","northing",id_col,
                 "companyholeid","holeid","datum","projection","zone",
                 "company","holetype","geom","dataset"}
@@ -369,8 +370,8 @@ class GeoAIPipeline:
         )
     """
 
-    def __init__(self, output_dir, registry_path=None):
-        self.out      = Path(output_dir)
+    def __init__(self, output_dir=None, registry_path=None):
+        self.out      = Path(output_dir) if output_dir else OUTPUT_DIR
         self.out.mkdir(parents=True, exist_ok=True)
         reg_path      = registry_path or self.out / "deposit_registry.json"
         self.registry = DepositRegistry(reg_path)
@@ -389,7 +390,7 @@ class GeoAIPipeline:
         log("GeoAI Pipeline starting")
         log("="*50)
 
-        # ── STEP 1: Categorise ────────────────────────────────
+        # STEP 1: Categorise ────────────────────────────────
         log("Step 1: Categorising uploaded files...")
         results, groups = categorise_batch(files)
         if not deposit_name:
@@ -399,23 +400,24 @@ class GeoAIPipeline:
             if layer_files:
                 log(f"  {layer}: {len(layer_files)} files")
 
-        # ── STEP 2: Process drillhole data ────────────────────
+        # STEP 2: Process drillhole data ────────────────────
         log("Step 2: Processing drillhole data...")
         geochem_extra = None
-        # Include geochemical CSVs that are drillhole-related
-        dh_geochem = [f for f in groups["geochemical"]
-                      if any(k in Path(f).stem.lower()
-                             for k in ["dh_","geochem","assay","alter"])]
-        collar_files = groups["drillhole"] + dh_geochem
-        assay_file   = None
-        collar_file  = None
-        alt_file     = None
+        # Combine drillhole + any geochemical files with dh_ prefix
+        all_dh_files = groups["drillhole"] + [
+            f for f in groups["geochemical"]
+            if any(k in Path(f).stem.lower() for k in
+                   ["dh_","drillhole","collar","assay","alter","lith"])
+        ]
+        assay_file  = None
+        collar_file = None
+        alt_file    = None
 
-        for f in collar_files:
+        for f in all_dh_files:
             name = Path(f).stem.lower()
             if "collar" in name:
                 collar_file = f
-            elif "pivot" in name or ("assay" in name and "pivot" in name):
+            elif "pivot" in name:
                 assay_file = f
             elif "assay" in name and not assay_file:
                 assay_file = f
@@ -425,9 +427,9 @@ class GeoAIPipeline:
                 geochem_extra = f
 
         # Fallback: first file is collar
-        if not collar_file and collar_files:
-            collar_file = collar_files[0]
-            remaining   = collar_files[1:]
+        if not collar_file and all_dh_files:
+            collar_file = all_dh_files[0]
+            remaining   = all_dh_files[1:]
             if remaining: assay_file = remaining[0]
             if len(remaining) > 1: alt_file = remaining[1]
 
@@ -443,7 +445,7 @@ class GeoAIPipeline:
             master, feat_cols, treo_col, n_labelled = proc.process()
             log(f"  Holes: {len(master)}  |  Labelled: {n_labelled}  |  Features: {len(feat_cols)}")
 
-        # ── STEP 3: Extract rasters at drillhole locations ────
+        # STEP 3: Extract rasters at drillhole locations ────
         log("Step 3: Extracting raster features...")
         raster_files = ([Path(f) for f in groups["geophysics"]] +
                         [Path(f) for f in groups["topography"]] +
@@ -458,7 +460,7 @@ class GeoAIPipeline:
                 feat_cols.append(f"r_{key}")
                 log(f"  Raster extracted: {key}")
 
-        # ── STEP 4: IDW pseudo-labels ─────────────────────────
+        # STEP 4: IDW pseudo-labels ─────────────────────────
         log("Step 4: Generating pseudo-labels via IDW...")
         if treo_col and n_labelled >= 3 and len(master) > n_labelled:
             from scipy.spatial import cKDTree
@@ -479,7 +481,7 @@ class GeoAIPipeline:
                                     if dists.ndim > 1 else 0.5
             log(f"  IDW: {n_labelled} labelled → {len(master)} pseudo-labelled")
 
-        # ── STEP 5: Build feature matrix ──────────────────────
+        # STEP 5: Build feature matrix ──────────────────────
         log("Step 5: Building feature matrix...")
         feat_cols = list(dict.fromkeys([c for c in feat_cols
                                         if c in master.columns]))
@@ -507,7 +509,7 @@ class GeoAIPipeline:
 
         log(f"  Feature matrix: {X_train.shape[0]} x {X_train.shape[1]}")
 
-        # ── STEP 6: Check registry — incremental or fresh ─────
+        # STEP 6: Check registry — incremental or fresh ─────
         log("Step 6: Checking model registry for existing training data...")
         existing_bundle = None
         if not force_retrain:
@@ -528,7 +530,7 @@ class GeoAIPipeline:
                 else:
                     log("  Feature schema changed — retraining fresh")
 
-        # ── STEP 7: Train ─────────────────────────────────────
+        # STEP 7: Train ─────────────────────────────────────
         log("Step 7: Training ensemble models...")
         if n_train < 5:
             log(f"  Only {n_train} labelled samples — need at least 5. Skipping training.")
@@ -595,6 +597,12 @@ class GeoAIPipeline:
         meta      = Ridge(alpha=1.0)
         meta_cv   = cross_val_predict(meta, meta_X, y_train, cv=kf).clip(0,1)
         meta.fit(meta_X, y_train)
+        
+        # ── Confidence Scoring (Ensemble Std Dev) ─────────
+        # Higher spread between models = lower confidence
+        ensemble_std = np.std(meta_X, axis=1)
+        # Normalise confidence to 0-1 (1 = max confidence where std is 0)
+        confidence = (1.0 - (ensemble_std / (ensemble_std.max() + 1e-6))).clip(0,1)
         meta_r2 = r2_score(y_train, meta_cv)
         rmse    = float(np.sqrt(mean_squared_error(y_train, meta_cv)))
 
@@ -607,7 +615,7 @@ class GeoAIPipeline:
             roc = ap = 0.0
         log(f"  Ensemble: CV R²={meta_r2:.4f}  ROC={roc:.4f}")
 
-        # ── STEP 8: Score all holes + save ────────────────────
+        # STEP 8: Score all holes + save ────────────────────
         log("Step 8: Scoring all holes...")
         X_all_s = scaler.transform(X_df.values)
         X_all_p = pca.transform(X_all_s)
@@ -620,7 +628,7 @@ class GeoAIPipeline:
         master["prospectivity"] = meta.predict(meta_all).clip(0,1)
         master["score_100"]     = (master["prospectivity"]*100).round(1)
 
-        # ── STEP 9: Save bundle ───────────────────────────────
+        # STEP 9: Save bundle ───────────────────────────────
         log("Step 9: Saving model bundle...")
         import joblib
         ts          = datetime.datetime.now().strftime("%Y%m%d_%H%M")
@@ -651,7 +659,7 @@ class GeoAIPipeline:
         self.registry.set_global_model(bundle_path)
         log(f"  Bundle saved: {bundle_path.name}")
 
-        # ── STEP 10: Save results ─────────────────────────────
+        # STEP 10: Save results ─────────────────────────────
         log("Step 10: Saving results...")
         out_csv = self.out / f"scored_{deposit_name}_{ts}.csv"
         master.to_csv(str(out_csv), index=False, encoding="utf-8")
@@ -678,4 +686,68 @@ class GeoAIPipeline:
             "feat_cols":    feat_cols,
             "treo_col":     treo_col,
             "model_scores": m_scores,
+            "feature_importances": self._get_importances(m_models, feat_cols),
+            "confidence":   float(confidence.mean()),
+            "shap_values":  self._get_shap_values(m_models["rf"], X_train, feat_cols),
         }
+
+    def _get_shap_values(self, model, X, feat_cols):
+        """Calculate SHAP values for the primary model."""
+        try:
+            import shap
+            # If pipeline, get model
+            m = model.steps[-1][1] if hasattr(model, "steps") else model
+            # Use TreeExplainer for RF
+            explainer = shap.TreeExplainer(m)
+            # Sample 100 points for speed
+            sample_idx = np.random.choice(len(X), min(100, len(X)), replace=False)
+            X_sample = X[sample_idx] if not hasattr(X, "values") else X[sample_idx]
+            shap_vals = explainer.shap_values(X_sample)
+            
+            # Aggregate absolute SHAP importance
+            mean_shap = np.abs(shap_vals).mean(axis=0)
+            if len(mean_shap.shape) > 1: mean_shap = mean_shap.mean(axis=1) # Handle multi-class
+            
+            summary = sorted(zip(feat_cols, mean_shap), key=lambda x: x[1], reverse=True)[:10]
+            return {f: float(v) for f, v in summary}
+        except Exception as e:
+            print(f"SHAP Error: {e}")
+            return {}
+
+    def _get_importances(self, models, feat_cols):
+        """Aggregate feature importances from RF and XGB models."""
+        importances = {}
+        for name, m in models.items():
+            if name in ["rf", "xgb"]:
+                # If it's a pipeline, get the last step
+                model = m.steps[-1][1] if hasattr(m, "steps") else m
+                if hasattr(model, "feature_importances_"):
+                    imps = model.feature_importances_
+                    for i, feat in enumerate(feat_cols):
+                        if i < len(imps):
+                            importances[feat] = importances.get(feat, 0) + imps[i]
+        
+        # Sort and return top 15
+        return sorted(importances.items(), key=lambda x: x[1], reverse=True)[:15]
+
+    def to_geojson(self, df):
+        """Convert result DataFrame to GeoJSON format."""
+        features = []
+        for _, row in df.iterrows():
+            if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
+                props = {k: v for k, v in row.items() if k not in ["lat", "lon", "geometry"]}
+                # Ensure values are JSON serializable
+                for k, v in props.items():
+                    if isinstance(v, (np.float64, np.float32)): props[k] = float(v)
+                    elif isinstance(v, (np.int64, np.int32)): props[k] = int(v)
+                    elif pd.isna(v): props[k] = None
+
+                features.append({
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [float(row["lon"]), float(row["lat"])]
+                    },
+                    "properties": props
+                })
+        return json.dumps({"type": "FeatureCollection", "features": features})

@@ -1,18 +1,20 @@
 """
-=======================================================
-  REE PROSPECTIVITY ENGINE -- STEP 2: PROCESS DATA
-  GeoAI-INDIA / Mount Weld Dataset
-  CUSTOMISED for your exact files and column names
-=======================================================
+REE PROSPECTIVITY ENGINE -- STEP 2: PROCESS DATA
+Customised for drillhole data processing.
 """
-
-import os, sys, warnings, datetime
-warnings.filterwarnings('ignore')
+import sys
+import warnings
+import datetime
 from pathlib import Path
 
-BASE_EXTRACTED = r"D:\GeoAI-INDIA\training_data_extracted"
-BASE_ORIGINAL  = r"D:\GeoAI-INDIA\training_data"
-OUTPUT_FOLDER  = r"D:\GeoAI-INDIA\ree_output"
+warnings.filterwarnings("ignore")
+
+# Add project root to path for geoai import
+sys.path.append(str(Path(__file__).parent.parent))
+from geoai.config import DEPOSITS_FOLDER, OUTPUT_DIR as OUTPUT_FOLDER
+
+BASE_EXTRACTED = DEPOSITS_FOLDER / "extracted"
+BASE_ORIGINAL  = DEPOSITS_FOLDER
 
 RASTER_TARGETS = {
     'tmi':          'magmap_v7_2019_TMI_ed_VRTP_05VD_geotiff.tif',
@@ -235,18 +237,14 @@ def finalise(master):
     out = list(dict.fromkeys(out))
     return master[out], all_feat
 
-if __name__ == '__main__':
-    print("\n"+"="*56)
+if __name__ == "__main__":
+    print("\n" + "=" * 56)
     print("  REE PROSPECTIVITY ENGINE -- DATA PROCESSING")
-    print("  GeoAI-INDIA / Mount Weld (customised)")
-    print("="*56)
+    print("=" * 56)
     log(f"Started: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-    try:
-        import pandas as pd, numpy as np
-    except ImportError:
-        print("  ERROR: run: pip install pandas numpy")
-        input(); sys.exit(1)
+    import pandas as pd
+    import numpy as np
 
     out = Path(OUTPUT_FOLDER)
     out.mkdir(parents=True, exist_ok=True)
@@ -257,11 +255,10 @@ if __name__ == '__main__':
     master = join_geology(master)
     fm, feat_cols = finalise(master)
 
-    fm.to_csv(out / 'feature_matrix.csv', index=False, encoding='utf-8')
-    master.to_csv(out / 'master_drillholes.csv', index=False, encoding='utf-8')
-    (out / 'feature_list.txt').write_text('\n'.join(feat_cols), encoding='utf-8')
-    (out / 'processing_log.txt').write_text('\n'.join(log_lines), encoding='utf-8')
+    fm.to_csv(out / "feature_matrix.csv", index=False, encoding="utf-8")
+    master.to_csv(out / "master_drillholes.csv", index=False, encoding="utf-8")
+    (out / "feature_list.txt").write_text("\n".join(feat_cols), encoding="utf-8")
+    (out / "processing_log.txt").write_text("\n".join(log_lines), encoding="utf-8")
 
-    log(f"\nFeature matrix: {fm.shape[0]:,} rows x {fm.shape[1]} cols -> {out / 'feature_matrix.csv'}")
-    print(f"\n  SUCCESS! Run step3_map.py next.\n")
-    input("  Press Enter to close...")
+    log(f"\nFeature matrix: {fm.shape[0]:,} rows x {fm.shape[1]} cols")
+    print("\n  SUCCESS! Run step3_map.py next.\n")

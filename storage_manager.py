@@ -16,8 +16,7 @@
 import argparse, json, shutil
 from pathlib import Path
 
-DEPOSITS_FOLDER = r"D:\GeoAI-INDIA\deposits"
-OUTPUT_FOLDER   = r"D:\GeoAI-INDIA\ree_output"
+from geoai.config import DEPOSITS_FOLDER, OUTPUT_DIR as OUTPUT_FOLDER
 
 # Extensions that are safe to delete after feature extraction
 RASTER_EXTENSIONS = {

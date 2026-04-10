@@ -13,18 +13,25 @@
     - CNN trained on multi-band satellite patches
 =======================================================
 """
-import sys, warnings, datetime
-warnings.filterwarnings('ignore')
+import sys
+import warnings
+import datetime
 from pathlib import Path
+
+warnings.filterwarnings("ignore")
 import numpy as np
 
-print("="*62)
-print("  REE ENGINE v9 -- SATELLITE + MULTI-ALGORITHM ENSEMBLE")
-print("="*62); print()
+# Add project root to path for geoai import
+sys.path.append(str(Path(__file__).parent.parent))
+from geoai.config import DEPOSITS_FOLDER, OUTPUT_DIR as OUTPUT_FOLDER
 
-OUTPUT_FOLDER  = r"D:\GeoAI-INDIA\ree_output"
-BASE_EXTRACTED = r"D:\GeoAI-INDIA\training_data_extracted"
-BASE_ORIGINAL  = r"D:\GeoAI-INDIA\training_data"
+print("=" * 62)
+print("  REE ENGINE v9 -- SATELLITE + MULTI-ALGORITHM ENSEMBLE")
+print("=" * 62)
+print()
+
+BASE_EXTRACTED = DEPOSITS_FOLDER / "extracted"
+BASE_ORIGINAL  = DEPOSITS_FOLDER
 GRID_RES_M     = 10
 
 out = Path(OUTPUT_FOLDER)
