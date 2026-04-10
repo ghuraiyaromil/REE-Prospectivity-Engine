@@ -8,8 +8,8 @@ from pathlib import Path
 # Project root (where app.py lives)
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 
-# Default data directories (within project root for portability)
-DEPOSITS_FOLDER = Path(os.getenv("GEOAI_DEPOSITS_DIR", PROJECT_ROOT / "data" / "deposits"))
+# High-capacity storage mapping (D: drive for large datasets)
+DEPOSITS_FOLDER = Path(os.getenv("GEOAI_DEPOSITS_DIR", "D:\\deposits"))
 OUTPUT_DIR      = Path(os.getenv("GEOAI_OUTPUT_DIR", PROJECT_ROOT / "outputs"))
 WATCH_FOLDER    = DEPOSITS_FOLDER
 GDRIVE_FOLDER   = Path(os.getenv("GEOAI_GDRIVE_DIR", PROJECT_ROOT / "storage" / "gdrive"))
