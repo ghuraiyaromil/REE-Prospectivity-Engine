@@ -39,8 +39,6 @@ import numpy as np
 import pandas as pd
 import joblib
 
-import sys
-from pathlib import Path
 # Add project root to path for geoai import
 sys.path.append(str(Path(__file__).parent.parent))
 from geoai.config import OUTPUT_DIR as MODEL_DIR, DEPOSITS_FOLDER
