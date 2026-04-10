@@ -37,9 +37,13 @@ class DepositRegistry:
     def register_deposit(self, name, bundle_path, metrics, n_holes):
         if name not in self.data["deposits"]:
             self.data["deposits"][name] = {"versions": []}
+        
+        # Store path relative to the registry folder (usually just the filename)
+        rel_path = Path(bundle_path).name
+        
         self.data["deposits"][name]["versions"].append({
             "date":        datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "bundle_path": str(bundle_path),
+            "bundle_path": rel_path,
             "n_holes":     n_holes,
             "cv_r2":       round(float(metrics.get("r2", 0)), 4),
             "roc_auc":     round(float(metrics.get("roc", 0)), 4),
@@ -51,19 +55,26 @@ class DepositRegistry:
 
     def get_latest_bundle(self, name=None):
         """Get most recent bundle path — globally or for a specific deposit."""
+        base_dir = self.path.parent
         if name and name in self.data["deposits"]:
             versions = self.data["deposits"][name]["versions"]
             if versions:
-                return Path(versions[-1]["bundle_path"])
+                rel = versions[-1]["bundle_path"]
+                # Handle old absolute paths during migration
+                p = Path(rel)
+                if not p.is_absolute(): p = base_dir / rel
+                return p
         # Search for any bundle file
         if self.data.get("global_model"):
-            p = Path(self.data["global_model"])
+            rel = self.data["global_model"]
+            p = Path(rel)
+            if not p.is_absolute(): p = base_dir / rel
             if p.exists():
                 return p
         return None
 
     def set_global_model(self, bundle_path):
-        self.data["global_model"] = str(bundle_path)
+        self.data["global_model"] = Path(bundle_path).name
         self.save()
 
 
