@@ -230,8 +230,7 @@ def _generate_pdf(result: dict, master: pd.DataFrame) -> bytes:
             f"Lat: {t['lat']:.4f} | Score: {t['score_100']:.1f}",
             0, 1,
         )
-
-    return pdf.output(dest="S").encode("latin-1")
+    return bytes(pdf.output())
 
 
 def _render_downloads(result: dict, master: pd.DataFrame, pipe) -> None:
