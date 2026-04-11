@@ -179,7 +179,16 @@ def _render_3d_visualiser(master: pd.DataFrame, treo_col: str | None) -> None:
         master = master.copy()
         master["depth_z"] = pd.to_numeric(master["elevation"], errors="coerce").fillna(0) - depth_vals
 
-        size_col = treo_col if (treo_col and treo_col in master.columns) else None
+        # Ensure size_col is valid for Plotly (must be >= 0 and non-NaN)
+        if treo_col and treo_col in master.columns and master[treo_col].notna().any():
+            size_col = "size_viz"
+            master[size_col] = pd.to_numeric(master[treo_col], errors="coerce").fillna(0).clip(lower=0)
+            # Normalize for visualization if too large
+            if master[size_col].max() > 1000:
+                master[size_col] = np.log1p(master[size_col])
+        else:
+            size_col = "score_100" # Fallback to AI score for sizing
+
         hover_col = "companyholeid" if "companyholeid" in master.columns else None
 
         fig_3d = px.scatter_3d(
