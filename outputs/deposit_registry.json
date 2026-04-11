@@ -19,9 +19,16 @@
           "n_holes": 8,
           "cv_r2": 0.8085,
           "roc_auc": 0.9577
+        },
+        {
+          "date": "2026-04-12 05:17",
+          "bundle_path": "ree_model_bundle_mountain_pass_20260412_0517.joblib",
+          "n_holes": 54,
+          "cv_r2": 0.8891,
+          "roc_auc": 0.9391
         }
       ]
     }
   },
-  "global_model": "ree_model_bundle_mountain_pass_20260412_0449.joblib"
+  "global_model": "ree_model_bundle_mountain_pass_20260412_0517.joblib"
 }

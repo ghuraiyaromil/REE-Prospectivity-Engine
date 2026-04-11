@@ -208,6 +208,7 @@ class DrillholeProcessor:
             # Additional derived indicators for LREE/HREE using case-insensitive search
             lree_k = [o.lower() for o in ["ceo2_ppm","la2o3_ppm","nd2o3_ppm","pr6o11_ppm","sm2o3_ppm"]]
             hree_k = [o.lower() for o in ["gd2o3_ppm","dy2o3_ppm","y2o3_ppm","er2o3_ppm","yb2o3_ppm"]]
+            
             lree_c = [c for c in assay.columns if c.lower() in lree_k]
             hree_c = [c for c in assay.columns if c.lower() in hree_k]
 
@@ -723,6 +724,22 @@ class GeoAIPipeline:
             log(f"  XGB: CV R²={m_scores['xgb']:.4f}")
         except ImportError:
             log("  XGBoost not installed — skipping")
+        except Exception as e:
+            log(f"  XGBoost failed: {e}")
+
+        # Neural Network (MLP)
+        try:
+            from sklearn.neural_network import MLPRegressor
+            nn = SKPipe([("sc",RobustScaler()),("pca",PCA(n_pca,random_state=42)),
+                         ("n", MLPRegressor(hidden_layer_sizes=(100, 50), max_iter=1000,
+                                             alpha=0.01, solver='adam', random_state=42))])
+            nn_cv = cross_val_predict(nn, X_train, y_train, cv=kf)
+            nn.fit(X_train, y_train)
+            m_models["nn"] = nn; m_preds["nn"] = nn_cv
+            m_scores["nn"] = r2_score(y_train, nn_cv)
+            log(f"  NeuralNet: CV R²={m_scores['nn']:.4f}")
+        except Exception as e:
+            log(f"  NeuralNet failed: {e}")
 
         # Stacking
         col_order = sorted(m_preds.keys())
