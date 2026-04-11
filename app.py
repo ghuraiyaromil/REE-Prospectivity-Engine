@@ -127,7 +127,7 @@ def _render_map(master: pd.DataFrame, treo_col: str | None) -> None:
             tooltip=f"{row.get('companyholeid', '')} {sc:.0f}/100",
         ).add_to(mc)
     folium.LayerControl().add_to(mp)
-    st_folium(mp, width=None, height=500)
+    st_folium(mp, use_container_width=True, height=500)
 
 
 def _render_data_health(master: pd.DataFrame, treo_col: str | None) -> None:
