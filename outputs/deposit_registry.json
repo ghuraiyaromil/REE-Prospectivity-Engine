@@ -10,7 +10,18 @@
           "roc_auc": 0.9324
         }
       ]
+    },
+    "mountain_pass": {
+      "versions": [
+        {
+          "date": "2026-04-12 04:49",
+          "bundle_path": "ree_model_bundle_mountain_pass_20260412_0449.joblib",
+          "n_holes": 8,
+          "cv_r2": 0.8085,
+          "roc_auc": 0.9577
+        }
+      ]
     }
   },
-  "global_model": "ree_model_bundle_mount_weld_20260411_0328.joblib"
+  "global_model": "ree_model_bundle_mountain_pass_20260412_0449.joblib"
 }

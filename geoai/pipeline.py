@@ -198,7 +198,9 @@ class DrillholeProcessor:
             all_ree = list(set(all_ree + auto_ppm))
             
             # Compute TREO
-            treo_parts = [c for c in assay.columns if c.lower() in [o.lower() for o in self.REE_OXIDE]]
+            ree_oxides_base = [o.replace("_ppm", "") for o in self.REE_OXIDE]
+            treo_parts = [c for c in assay.columns if c.lower() in [o.lower() for o in self.REE_OXIDE]
+                          or c.lower() in ree_oxides_base]
             if treo_parts:
                 assay["treo"] = assay[treo_parts].apply(pd.to_numeric, errors="coerce").sum(axis=1, skipna=True)
                 assay.loc[assay[treo_parts].isna().all(axis=1), "treo"] = np.nan
@@ -228,8 +230,10 @@ class DrillholeProcessor:
             if c1 and c2: assay["th_u_ratio"] = assay[c1] / (assay[c2] + 0.001)
 
             derived = [c for c in ["lree_hree_ratio","ce_la_ratio","p_fe_ratio",
-                                    "th_u_ratio","lree","hree","treo"] if c in assay.columns]
+                                    "th_u_ratio","lree","hree","treo", "treo_max"] if c in assay.columns]
             agg_cols = all_ree + [c for c in derived]
+            if "treo_max" in assay.columns and "treo" not in assay.columns:
+                 assay["treo"] = assay["treo_max"] # use pre-calculated
             agg_d = {}
             for c in agg_cols:
                 if c in assay.columns: agg_d[c] = ["max","mean"]
@@ -552,26 +556,47 @@ class GeoAIPipeline:
 
         log(f"  Feature matrix: {X_train.shape[0]} x {X_train.shape[1]}")
 
-        # STEP 6: Check registry — incremental or fresh ─────
-        log("Step 6: Checking model registry for existing training data...")
-        existing_bundle = None
+        # STEP 6: Check registry — Universal Feature Union ─────
+        log("Step 6: Building Universal Feature Union across deposits...")
+        all_X = [X_train]
+        all_y = [y_train]
+        union_feats = set(feat_cols)
+        
         if not force_retrain:
             existing_bundle = self.registry.get_latest_bundle()
             if existing_bundle and existing_bundle.exists():
-                import joblib
-                bundle = joblib.load(str(existing_bundle))
-                old_feat = bundle.get("feat_cols", [])
-                if set(feat_cols) == set(old_feat):
-                    old_X = bundle.get("X_train", np.empty((0, X_train.shape[1])))
-                    old_y = bundle.get("y_train", np.array([]))
-                    if old_X.shape[1] == X_train.shape[1]:
-                        X_train = np.vstack([old_X, X_train])
+                try:
+                    import joblib
+                    bundle = joblib.load(str(existing_bundle))
+                    old_feat = bundle.get("feat_cols", [])
+                    old_X    = bundle.get("X_train")
+                    old_y    = bundle.get("y_train")
+                    
+                    if old_X is not None and old_y is not None:
+                        # 1. Update Union
+                        union_feats.update(old_feat)
+                        union_list = sorted(list(union_feats))
+                        
+                        # 2. Re-align Current Data
+                        current_df = pd.DataFrame(X_train, columns=feat_cols)
+                        for c in union_list:
+                            if c not in current_df.columns: current_df[c] = 0.0
+                        X_train = current_df[union_list].values
+                        
+                        # 3. Re-align Old Data
+                        old_df = pd.DataFrame(old_X, columns=old_feat)
+                        for c in union_list:
+                            if c not in old_df.columns: old_df[c] = 0.0
+                        old_X_aligned = old_df[union_list].values
+                        
+                        # 4. Concatenate
+                        X_train = np.vstack([old_X_aligned, X_train])
                         y_train = np.concatenate([old_y, y_train])
-                        log(f"  Appended to existing: {old_X.shape[0]} old + {n_train} new = {len(y_train)} total")
-                    else:
-                        log("  Feature mismatch with existing bundle — retraining fresh")
-                else:
-                    log("  Feature schema changed — retraining fresh")
+                        feat_cols = union_list
+                        log(f"  Merged with existing bundle: Total training points = {len(y_train)}")
+                        log(f"  Universal Feature Space: {len(feat_cols)} layers")
+                except Exception as e:
+                    log(f"  Warning: Could not merge with existing bundle: {e}")
 
         # ── INFERENCE ONLY MODE ────────────────────────────
         if inference_only:
@@ -723,14 +748,36 @@ class GeoAIPipeline:
             roc = ap = 0.0
         log(f"  Ensemble: CV R²={meta_r2:.4f}  ROC={roc:.4f}")
 
+        # STEP 8: Store training data in result for future merges ───
+        # (This was missing from the last bundle version, crucial for incremental learning)
+
         # STEP 8: Score all holes + save ────────────────────
         log("Step 8: Scoring all holes...")
-        X_all_s = scaler.transform(X_df.values)
+        
+        # Align master with the current feature union before scoring
+        for c in feat_cols:
+            if c not in master.columns:
+                master[c] = 0.0
+        
+        X_df_final = master[feat_cols].copy()
+        for c in feat_cols:
+            X_df_final[c] = pd.to_numeric(X_df_final[c], errors="coerce")
+        X_df_final = X_df_final.fillna(X_df_final.median()).fillna(0)
+        
+        # log1p geochemical features in the alignment
+        for c in feat_cols:
+            if "_ppm" in c or "ratio" in c or c in ["lree_max","hree_max","treo_max"]:
+                X_df_final[c] = np.log1p(X_df_final[c].clip(lower=0))
+
+        X_all_s = scaler.transform(X_df_final.values)
         X_all_p = pca.transform(X_all_s)
         all_preds_list = []
         for k in col_order:
             m = m_models[k]
-            p = m.predict(X_df.values if hasattr(m,"steps") else X_all_p).clip(0,1)
+            # Use X_df_final if it's a model that takes raw features (like XGBoost wrapper might)
+            # but usually they all use PCA or the scaler. 
+            # Stacking meta uses simple predict.
+            p = m.predict(X_df_final.values if hasattr(m,"steps") else X_all_p).clip(0,1)
             all_preds_list.append(p)
         meta_all = np.column_stack(all_preds_list)
         master["prospectivity"] = meta.predict(meta_all).clip(0,1)
