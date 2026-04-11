@@ -437,28 +437,53 @@ if uploaded:
             master   = result["master_df"]
             treo_col = result["treo_col"]
 
-            _render_metrics(result)
-            _render_data_health(master, treo_col)
+            try:
+                _render_metrics(result)
+            except Exception as e:
+                st.warning(f"Metrics display error: {e}")
 
-            st.markdown("#### Prospectivity map")
-            _render_map(master, treo_col)
+            try:
+                _render_data_health(master, treo_col)
+            except Exception as e:
+                st.warning(f"Data health error: {e}")
 
-            st.markdown("#### Top 20 drill targets")
-            show_cols = [
-                c for c in ["companyholeid", "lat", "lon", "score_100",
-                            treo_col, "depth_score"]
-                if c and c in master.columns
-            ]
-            st.dataframe(
-                master.nlargest(20, "score_100")[show_cols],
-                use_container_width=True,
-            )
+            try:
+                st.markdown("#### Prospectivity map")
+                _render_map(master, treo_col)
+            except Exception as e:
+                st.warning(f"Map rendering error: {e}")
 
-            _render_3d_visualiser(master, treo_col)
+            try:
+                st.markdown("#### Top 20 drill targets")
+                show_cols = [
+                    c for c in ["companyholeid", "lat", "lon", "score_100",
+                                treo_col, "depth_score"]
+                    if c and c in master.columns
+                ]
+                st.dataframe(
+                    master.nlargest(20, "score_100")[show_cols],
+                )
+            except Exception as e:
+                st.warning(f"Targets table error: {e}")
+
+            try:
+                _render_3d_visualiser(master, treo_col)
+            except Exception as e:
+                st.warning(f"3D visualizer error: {e}")
 
             st.markdown("---")
-            _render_downloads(result, master, pipe)
-            _render_model_insights(result)
+
+            try:
+                _render_downloads(result, master, pipe)
+            except Exception as e:
+                st.warning(f"Downloads error: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+
+            try:
+                _render_model_insights(result)
+            except Exception as e:
+                st.warning(f"Model insights error: {e}")
 
         elif result.get("status") == "insufficient_data":
             st.warning(
