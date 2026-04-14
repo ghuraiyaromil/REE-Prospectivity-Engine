@@ -65,7 +65,8 @@ def categorise_file(filepath):
     for layer, keywords in FILENAME_RULES.items():
         for kw in keywords:
             if kw in name:
-                scores[layer] += 3
+                weight = 10 if kw in ["collar", "assay", "dh_", "drillhole"] else 3
+                scores[layer] += weight
                 reasons.append(f"filename contains '{kw}' → {layer}")
                 break
 

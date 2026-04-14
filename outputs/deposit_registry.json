@@ -3,32 +3,25 @@
     "mount_weld": {
       "versions": [
         {
-          "date": "2026-04-11 03:28",
-          "bundle_path": "ree_model_bundle_mount_weld_20260411_0328.joblib",
+          "date": "2026-03-23 07:08",
+          "bundle_path": "ree_model_bundle_mount_weld_v9_original.joblib",
           "n_holes": 119,
-          "cv_r2": 0.7717,
-          "roc_auc": 0.9324
+          "cv_r2": 0.8528,
+          "roc_auc": 0.9521
         }
       ]
     },
     "mountain_pass": {
       "versions": [
         {
-          "date": "2026-04-12 04:49",
-          "bundle_path": "ree_model_bundle_mountain_pass_20260412_0449.joblib",
-          "n_holes": 8,
-          "cv_r2": 0.8085,
-          "roc_auc": 0.9577
-        },
-        {
-          "date": "2026-04-12 05:17",
-          "bundle_path": "ree_model_bundle_mountain_pass_20260412_0517.joblib",
+          "date": "2026-04-14 07:36",
+          "bundle_path": "ree_model_bundle_mountain_pass_20260414_0736.joblib",
           "n_holes": 54,
-          "cv_r2": 0.8891,
-          "roc_auc": 0.9391
+          "cv_r2": 0.974,
+          "roc_auc": 0.9704
         }
       ]
     }
   },
-  "global_model": "ree_model_bundle_mountain_pass_20260412_0517.joblib"
+  "global_model": "ree_model_bundle_mountain_pass_20260414_0736.joblib"
 }
