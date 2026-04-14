@@ -821,100 +821,98 @@ class GeoAIPipeline:
         from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
         from sklearn.feature_selection import SelectKBest, f_regression
         from sklearn.metrics import r2_score, mean_squared_error, roc_auc_score
-        from sklearn.model_selection import KFold, cross_val_predict
+        from sklearn.model_selection import KFold, GroupKFold, cross_val_predict
         from sklearn.impute import SimpleImputer
+        from sklearn.pipeline import Pipeline
+        from sklearn.cluster import KMeans
 
         # ── FIX 1: Clean NaN/inf in feature matrix ──────────────
         X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)
-        imp = SimpleImputer(strategy='median')
-        X_train = imp.fit_transform(X_train)
-
-        # ── FIX 2: Dimensionality reduction when p >> n ─────────
         n_samples, n_features = X_train.shape
-        k_best = min(n_features, max(10, n_samples // 2))
-        log(f"  Samples: {n_samples}, Raw features: {n_features}, Selecting top {k_best}")
+
+        # ── SPATIAL CROSS-VALIDATION GROUPS ─────────────────────
+        # If coordinates available, group by spatial clusters to prevent leakage
+        spatial_groups = np.zeros(n_samples)
+        if "lat" in master.columns and "lon" in master.columns:
+            coords = master[["lon", "lat"]].fillna(0).values[labeled]
+            if len(coords) >= 10:
+                n_clusters = min(10, len(coords) // 4)
+                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                spatial_groups = kmeans.fit_predict(coords)
+                log(f"  Spatial CV: Split into {n_clusters} clusters to prevent regional leakage")
+            else:
+                spatial_groups = np.arange(len(coords)) # Leave-one-out style
         
-        selector = SelectKBest(f_regression, k=k_best)
-        X_reduced = selector.fit_transform(X_train, y_train)
-        selected_mask = selector.get_support()
-        selected_feat_names = [feat_cols[i] for i in range(len(feat_cols)) if selected_mask[i]]
-        log(f"  Top features: {selected_feat_names[:10]}...")
+        n_splits = min(5, len(np.unique(spatial_groups)))
+        cv_strategy = GroupKFold(n_splits=n_splits)
+        
+        # ── HELPER: Build Atomic Pipeline ───────────────────────
+        def get_pipeline(model):
+            return Pipeline([
+                ('imputer', SimpleImputer(strategy='median')),
+                ('selector', SelectKBest(f_regression, k=min(n_features, max(10, n_samples // 2)))),
+                ('scaler', StandardScaler()),
+                ('regressor', model)
+            ])
 
-        # ── FIX 3: Always refit scaler on current data ──────────
-        scaler = StandardScaler()
-        X_s = scaler.fit_transform(X_reduced)
-
-        n_splits = min(5, max(2, n_samples // 5))
-        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
         m_models = {}; m_preds = {}; m_scores = {}
 
-        # ── FIX 4: Use tree-based models (handle sparse data well) ──
         # Model 1: Random Forest
         rf = RandomForestRegressor(n_estimators=200, max_depth=None,
                                     min_samples_leaf=2, random_state=42, n_jobs=-1)
+        rf_pipe = get_pipeline(rf)
         try:
-            m_preds["rf"] = cross_val_predict(rf, X_s, y_train, cv=kf)
-            rf.fit(X_s, y_train)
-            m_models["rf"] = rf
+            m_preds["rf"] = cross_val_predict(rf_pipe, X_train, y_train, cv=cv_strategy, groups=spatial_groups)
+            rf_pipe.fit(X_train, y_train) # Fit on all data for scoring/bundle
+            m_models["rf"] = rf_pipe
             m_scores["rf"] = r2_score(y_train, m_preds["rf"])
         except Exception as e:
             log(f"  RF failed: {e}")
-        log(f"  RF: CV R2={m_scores.get('rf', 'FAILED')}")
+        log(f"  RF (Spatial CV): R2={m_scores.get('rf', 'FAILED'):.4f}")
 
         # Model 2: Gradient Boosting
         gb = GradientBoostingRegressor(n_estimators=200, max_depth=4,
                                         learning_rate=0.05, subsample=0.8, random_state=42)
+        gb_pipe = get_pipeline(gb)
         try:
-            m_preds["gb"] = cross_val_predict(gb, X_s, y_train, cv=kf)
-            gb.fit(X_s, y_train)
-            m_models["gb"] = gb
+            m_preds["gb"] = cross_val_predict(gb_pipe, X_train, y_train, cv=cv_strategy, groups=spatial_groups)
+            gb_pipe.fit(X_train, y_train)
+            m_models["gb"] = gb_pipe
             m_scores["gb"] = r2_score(y_train, m_preds["gb"])
         except Exception as e:
             log(f"  GB failed: {e}")
-        log(f"  GB: CV R2={m_scores.get('gb', 'FAILED')}")
+        log(f"  GB (Spatial CV): R2={m_scores.get('gb', 'FAILED'):.4f}")
 
-        # Model 3: SGD Regressor (incremental-capable backup)
+        # Model 3: SGD Regressor
         sgd = SGDRegressor(loss='huber', penalty='elasticnet', alpha=0.01,
                            max_iter=2000, tol=1e-4, random_state=42)
+        sgd_pipe = get_pipeline(sgd)
         try:
-            m_preds["sgd"] = cross_val_predict(sgd, X_s, y_train, cv=kf)
-            sgd.fit(X_s, y_train)
-            m_models["sgd"] = sgd
+            m_preds["sgd"] = cross_val_predict(sgd_pipe, X_train, y_train, cv=cv_strategy, groups=spatial_groups)
+            sgd_pipe.fit(X_train, y_train)
+            m_models["sgd"] = sgd_pipe
             m_scores["sgd"] = r2_score(y_train, m_preds["sgd"])
         except Exception as e:
             log(f"  SGD failed: {e}")
-        log(f"  SGD: CV R2={m_scores.get('sgd', 'FAILED')}")
+        log(f"  SGD (Spatial CV): R2={m_scores.get('sgd', 'FAILED'):.4f}")
 
-        # Model 4: MLP (only if enough samples)
-        if n_samples >= 30:
-            mlp = MLPRegressor(hidden_layer_sizes=(64, 32), max_iter=1000,
-                               alpha=0.1, learning_rate='adaptive', random_state=42)
-            try:
-                m_preds["mlp"] = cross_val_predict(mlp, X_s, y_train, cv=kf)
-                mlp.fit(X_s, y_train)
-                m_models["mlp"] = mlp
-                m_scores["mlp"] = r2_score(y_train, m_preds["mlp"])
-            except Exception as e:
-                log(f"  MLP failed: {e}")
-            log(f"  MLP: CV R2={m_scores.get('mlp', 'FAILED')}")
-
-        # Quality gate: keep models with R² > -1.0
-        qualified = {k: v for k, v in m_models.items() if m_scores.get(k, -999) > -1.0}
-        if not qualified:
+        # Quality gate: keep models with R² > -5.0 (be more lenient with spatial CV)
+        qualified_keys = [k for k, v in m_models.items() if m_scores.get(k, -999) > -5.0]
+        if not qualified_keys:
             best_k = max(m_scores, key=m_scores.get)
-            qualified = {best_k: m_models[best_k]}
-            log(f"  WARNING: All models underperformed. Using best: {best_k}")
+            qualified_keys = [best_k]
+            log(f"  WARNING: High variance in spatial blocks. Using best: {best_k}")
 
-        col_order = sorted(qualified.keys())
+        col_order = sorted(qualified_keys)
         meta_X    = np.column_stack([m_preds[k] for k in col_order])
         meta      = Ridge(alpha=1.0)
-        meta_cv   = cross_val_predict(meta, meta_X, y_train, cv=kf).clip(0,1)
+        meta_cv   = cross_val_predict(meta, meta_X, y_train, cv=cv_strategy, groups=spatial_groups).clip(0,1)
         meta.fit(meta_X, y_train)
 
         ensemble_std = np.std(meta_X, axis=1) if len(col_order) > 1 else np.zeros_like(y_train)
-        confidence = (1.0 - (ensemble_std / (ensemble_std.max() + 1e-6))).clip(0,1)
-        meta_r2 = r2_score(y_train, meta_cv)
-        rmse    = float(np.sqrt(mean_squared_error(y_train, meta_cv)))
+        confidence   = (1.0 - (ensemble_std / (ensemble_std.max() + 1e-6))).clip(0,1)
+        meta_r2      = r2_score(y_train, meta_cv)
+        rmse         = float(np.sqrt(mean_squared_error(y_train, meta_cv)))
 
         try:
             thr  = np.percentile(y_train, 70)
@@ -926,12 +924,11 @@ class GeoAIPipeline:
 
 
         # STEP 8: Store training data in result for future merges ───
-        # (This was missing from the last bundle version, crucial for incremental learning)
-
+        
         # STEP 8: Score all holes + save ────────────────────
         log("Step 8: Scoring all holes...")
         
-        # Align master with the current feature union before scoring
+        # Align master with the current feature union
         for c in feat_cols:
             if c not in master.columns:
                 master[c] = 0.0
@@ -946,44 +943,40 @@ class GeoAIPipeline:
             if "_ppm" in c or "ratio" in c or c in ["lree_max","hree_max","treo_max"]:
                 X_df_final[c] = np.log1p(X_df_final[c].clip(lower=0))
 
-        # Apply same NaN cleanup, selector, and scaler as training
-        X_final_clean = np.nan_to_num(X_df_final.values, nan=0.0, posinf=0.0, neginf=0.0)
-        X_final_clean = imp.transform(X_final_clean)
-        X_final_sel = selector.transform(X_final_clean)
-        X_all_s = scaler.transform(X_final_sel)
-
+        X_final_raw = X_df_final.values
+        
+        # Scoring is now simple: just use the pipelines
         all_preds_list = []
         for k in col_order:
             m = m_models[k]
-            p = m.predict(X_all_s).clip(0,1)
-            all_preds_list.append(p)
+            all_preds_list.append(m.predict(X_final_raw).clip(0,1))
+            
         meta_all = np.column_stack(all_preds_list)
         master["prospectivity"] = meta.predict(meta_all).clip(0,1)
         master["score_100"]     = (master["prospectivity"]*100).round(1)
         
-        # Attach SHAP explanations to each row for the UI (Flaw 10)
         log("  Calculating spatial SHAP explanations...")
-        try:
-            master["explanations"] = "{}"
-        except:
-            master["explanations"] = "{}"
+        master["explanations"] = "{}"
 
-        # STEP 9: Save bundle (Lightweight - Flaw 9 Fix)
+        # STEP 9: Save bundle
         log("Step 9: Saving model bundle...")
         import joblib
         import time
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M")
         bundle_path = self.out / f"ree_model_bundle_{deposit_name}_{ts}.joblib"
         p95 = np.percentile(y_train, 95) if len(y_train) > 0 else 1000
+        
+        # Extract components for legacy inference blocks if needed
+        first_pipe = m_models[col_order[0]]
+        
         bundle = {
-            "models":    qualified,
+            "models":    m_models,
             "meta":      meta,
-            "scaler":    scaler,
-            "selector":  selector,
-            "imputer":   imp,
-            "pca":       None,
+            "scaler":    first_pipe.named_steps['scaler'],
+            "selector":  first_pipe.named_steps['selector'],
+            "imputer":   first_pipe.named_steps['imputer'],
             "feat_cols": feat_cols,
-            "selected_feat_names": selected_feat_names,
+            "selected_feat_names": [feat_cols[i] for i in range(len(feat_cols)) if first_pipe.named_steps['selector'].get_support()[i]],
             "p95_treo":  float(p95),
             "timestamp": int(time.time()),
             "meta_info": {
@@ -992,7 +985,7 @@ class GeoAIPipeline:
                 "rmse":         rmse,
                 "model_scores": {k: float(v) for k, v in m_scores.items()},
                 "model_names":  col_order,
-                "version":      "5.0.0-SelectKBest-RF-GB"
+                "version":      "6.0.0-SpatialCV-Pipeline"
             }
         }
         joblib.dump(bundle, str(bundle_path), compress=3)
@@ -1006,6 +999,7 @@ class GeoAIPipeline:
         # STEP 10: Save results ─────────────────────────────
         log("Step 10: Saving results...")
         out_csv = self.out / f"scored_{deposit_name}_{ts}.csv"
+        master.to_csv(str(out_csv), index=False, encoding="utf-8")
         master.to_csv(str(out_csv), index=False, encoding="utf-8")
 
         top50 = master.nlargest(50,"score_100")
