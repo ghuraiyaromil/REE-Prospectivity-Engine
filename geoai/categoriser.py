@@ -34,6 +34,7 @@ EXTENSION_RULES = {
     "satellite":   [".jp2",".ecw",".img"],
     "topography":  [".asc",".laz",".las",".xyz"],
     "geophysics":  [".tif",".tiff"],   # default for rasters
+    "archive":     [".zip", ".tar", ".gz", ".7z", ".rar"],
 }
 
 # Column header keywords (for CSV/Excel)

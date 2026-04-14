@@ -3,7 +3,7 @@ geoai/pipeline.py
 Unified auto-pipeline: raw data -> feature matrix -> trained model -> results.
 Handles any deposit, any data format, incrementally.
 """
-import warnings, datetime, hashlib, json, logging
+import warnings, datetime, hashlib, json, logging, zipfile, tarfile, shutil, tempfile
 warnings.filterwarnings("ignore")
 from pathlib import Path
 import numpy as np
@@ -454,6 +454,31 @@ class GeoAIPipeline:
         reg_path      = registry_path or self.out / "deposit_registry.json"
         self.registry = DepositRegistry(reg_path)
 
+    def _expand_archives(self, file_paths, temp_dir):
+        """Recursively expand ZIP and TAR archives into a temp directory."""
+        expanded = []
+        for fp in file_paths:
+            p = Path(fp)
+            if p.suffix.lower() in [".zip", ".tar", ".gz", ".tgz"]:
+                try:
+                    extract_path = Path(temp_dir) / p.stem
+                    extract_path.mkdir(parents=True, exist_ok=True)
+                    if p.suffix.lower() == ".zip":
+                        with zipfile.ZipFile(str(p), 'r') as z:
+                            z.extractall(str(extract_path))
+                    else: # tar
+                        with tarfile.open(str(p), 'r:*') as t:
+                            t.extractall(str(extract_path))
+                    
+                    # Recursively check the new files
+                    inner_files = [f for f in extract_path.rglob("*") if f.is_file()]
+                    expanded.extend(self._expand_archives(inner_files, temp_dir))
+                except Exception as e:
+                    print(f"  Error extracting {p.name}: {e}")
+            else:
+                expanded.append(p)
+        return expanded
+
     def run(self, files, deposit_name=None, force_retrain=False, 
             inference_only=False, progress_cb=None):
         """
@@ -470,8 +495,25 @@ class GeoAIPipeline:
         log("GeoAI Pipeline starting")
         log("="*50)
 
+        # STEP 0: Expand Archives ──────────────────────────
+        log("Step 0: Expanding archives...")
+        # Use a temporary directory for extraction
+        with tempfile.TemporaryDirectory() as td:
+            files = self._expand_archives(files, td)
+            # Copy all files to a stable temp location for the duration of run
+            # since td will be deleted at end of scope.
+            # Actually, Step 1 follows immediately.
+            # To be safe, we should expand into a directory we control or
+            # ensure subsequent steps don't rely on paths after 'with' block.
+            # Better: the caller should handle temp file lifecycle or
+            # GeoAIPipeline should manage it.
+            
+            # REVISION: Process everything within the context of extraction
+            return self._run_internal(files, deposit_name, force_retrain, inference_only, log)
+
+    def _run_internal(self, files, deposit_name, force_retrain, inference_only, log):
         # STEP 1: Categorise ────────────────────────────────
-        log("Step 1: Categorising uploaded files...")
+        log("Step 1: Categorising files...")
         results, groups = categorise_batch(files)
         if not deposit_name:
             deposit_name = detect_deposit_name(files)
@@ -712,7 +754,9 @@ class GeoAIPipeline:
             m_models = bundle["models"]
             meta = bundle["meta"]
             scaler = bundle["scaler"]
-            pca = bundle["pca"]
+            selector = bundle.get("selector")
+            imp = bundle.get("imputer")
+            pca = bundle.get("pca")
             p95 = bundle.get("p95_treo", 1000)
             bundle_feat_cols = bundle["feat_cols"]
             col_order = bundle["meta_info"]["model_names"]
@@ -726,17 +770,24 @@ class GeoAIPipeline:
                 X_df[c] = pd.to_numeric(X_df[c], errors="coerce")
             X_df = X_df.fillna(X_df.median()).fillna(0)
             for c in bundle_feat_cols:
-                if "_ppm" in c or "ratio" in c:
+                if "_ppm" in c or "ratio" in c or c in ["lree_max","hree_max","treo_max"]:
                     X_df[c] = np.log1p(X_df[c].clip(lower=0))
 
             # Score using global model
             log("Step 8: Scoring holes using global model...")
-            X_all_s = scaler.transform(X_df.values)
-            X_all_p = pca.transform(X_all_s)
+            X_vals = X_df.values
+            X_clean = np.nan_to_num(X_vals, nan=0.0, posinf=0.0, neginf=0.0)
+            if imp: X_clean = imp.transform(X_clean)
+            if selector: X_clean = selector.transform(X_clean)
+            X_all_s = scaler.transform(X_clean)
+            
+            if pca: X_all_s = pca.transform(X_all_s)
+
             all_preds_list = []
             for k in col_order:
                 m = m_models[k]
-                p = m.predict(X_df.values if hasattr(m, "steps") else X_all_p).clip(0, 1)
+                # If pipeline, it might want raw/transformed data
+                p = m.predict(X_all_s).clip(0, 1)
                 all_preds_list.append(p)
             meta_all = np.column_stack(all_preds_list)
             master["prospectivity"] = meta.predict(meta_all).clip(0, 1)

@@ -29,23 +29,130 @@ st.set_page_config(
 # ── THEME CSS ────────────────────────────────────────────────
 _CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
-html,body,[class*="css"]{font-family:'IBM Plex Sans',sans-serif}
-h1{font-family:'IBM Plex Mono',monospace!important;color:#C9A84C!important;font-size:1.8rem!important}
-h3{color:#C9A84C!important}
-.stButton>button{background:#C9A84C;color:#0d0a06;border:none;font-family:'IBM Plex Mono',monospace;
-  font-weight:500;border-radius:4px;padding:.6rem 2rem;font-size:1rem;width:100%}
-.stButton>button:hover{background:#E8D5A0}
-.mbox{background:#1a1208;border:1px solid #3D2E14;border-radius:8px;padding:1rem;text-align:center}
-.mval{font-family:'IBM Plex Mono',monospace;font-size:1.6rem;font-weight:500;color:#C9A84C}
-.mlbl{font-size:.7rem;color:#6B5535;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
-.logbox{background:#0d0a06;border:1px solid #3D2E14;border-radius:6px;padding:1rem;
-  font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:#6B8C6B;max-height:220px;overflow-y:auto}
-.pill{display:inline-block;background:#1a1208;border:1px solid #3D2E14;border-radius:4px;
-  padding:3px 10px;margin:2px;font-family:'IBM Plex Mono',monospace;font-size:.75rem}
-.badge{display:inline-block;border-radius:3px;padding:2px 8px;font-size:.7rem;margin:2px;
-  font-family:'IBM Plex Mono',monospace}
-div[data-testid="stSidebar"]{background:#080604;border-right:1px solid #1a1208}
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+    --primary: #D4AF37;
+    --bg-dark: #0A0A0B;
+    --glass: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --accent-orange: #FF6B2B;
+}
+
+html, body, [class*="css"] {
+    font-family: 'Outfit', sans-serif;
+    color: #E0E0E0;
+}
+
+.stApp {
+    background-color: var(--bg-dark);
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(212, 175, 55, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(255, 107, 43, 0.05) 0px, transparent 50%);
+}
+
+h1 {
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 600 !important;
+    background: linear-gradient(135deg, #FFF 0%, #D4AF37 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 2.8rem !important;
+    letter-spacing: -1px;
+}
+
+h3 {
+    color: var(--primary) !important;
+    font-weight: 500 !important;
+}
+
+/* Glass Cards */
+.glass-card {
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.metric-card {
+    background: rgba(212, 175, 55, 0.03);
+    border: 1px solid rgba(212, 175, 55, 0.1);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+    transition: transform 0.3s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-5px);
+    background: rgba(212, 175, 55, 0.06);
+    border-color: rgba(212, 175, 55, 0.3);
+}
+
+.mval {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.mlbl {
+    font-size: 0.75rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 5px;
+}
+
+/* Buttons */
+.stButton>button {
+    background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%);
+    color: #000 !important;
+    border: none;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0.8rem 2rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 100%;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);
+}
+
+.stButton>button:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
+    background: linear-gradient(135deg, #E8C860 0%, #D4AF37 100%);
+}
+
+.logbox {
+    background: #000;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: #00FF41;
+    max-height: 250px;
+    overflow-y: auto;
+    box-shadow: inset 0 0 10px rgba(0, 255, 65, 0.1);
+}
+
+/* Sidebar */
+div[data-testid="stSidebar"] {
+    background: #050505;
+    border-right: 1px solid var(--glass-border);
+}
+
+.badge {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
 </style>
 """
 st.markdown(_CSS, unsafe_allow_html=True)
@@ -58,6 +165,7 @@ LAYER_COLOURS = {
     "geology":     ("#7F77DD", "#EEEDFE"),
     "satellite":   ("#D85A30", "#FAECE7"),
     "topography":  ("#888780", "#F1EFE8"),
+    "archive":     ("#444444", "#FFFFFF"),
 }
 
 
@@ -65,21 +173,23 @@ LAYER_COLOURS = {
 # HELPER FUNCTIONS
 # ═══════════════════════════════════════════════════════════════
 def _render_metrics(result: dict) -> None:
-    """Render the top-level KPI metrics row."""
-    st.markdown(
-        f'<div style="display:flex;gap:1rem;margin:1rem 0">'
-        f'<div class="mbox"><div class="mval">{result["cv_r2"]:.3f}</div>'
-        f'<div class="mlbl">CV R²</div></div>'
-        f'<div class="mbox"><div class="mval">{result["roc_auc"]:.3f}</div>'
-        f'<div class="mlbl">ROC AUC</div></div>'
-        f'<div class="mbox"><div class="mval">{result["n_labelled"]}</div>'
-        f'<div class="mlbl">Labelled holes</div></div>'
-        f'<div class="mbox"><div class="mval">{result["top_score"]:.0f}</div>'
-        f'<div class="mlbl">Top score</div></div>'
-        f'<div class="mbox"><div class="mval">{result["n_features"]}</div>'
-        f'<div class="mlbl">Features</div></div></div>',
-        unsafe_allow_html=True,
-    )
+    """Render the top-level KPI metrics row with premium glass cards."""
+    cols = st.columns(5)
+    metrics = [
+        (f"{result['cv_r2']:.3f}", "CV R²"),
+        (f"{result['roc_auc']:.3f}", "ROC AUC"),
+        (f"{result['n_labelled']}", "Labelled Holes"),
+        (f"{result['top_score']:.0f}/100", "Top Target Score"),
+        (f"{result['n_features']}", "Active Features")
+    ]
+    
+    for i, (val, lbl) in enumerate(metrics):
+        with cols[i]:
+            st.markdown(
+                f'<div class="metric-card"><div class="mval">{val}</div>'
+                f'<div class="mlbl">{lbl}</div></div>',
+                unsafe_allow_html=True
+            )
 
 
 def _render_map(master: pd.DataFrame, treo_col: str | None) -> None:
@@ -165,42 +275,49 @@ def _render_data_health(master: pd.DataFrame, treo_col: str | None) -> None:
 
 
 def _render_3d_visualiser(master: pd.DataFrame, treo_col: str | None) -> None:
-    """Render the 3D sub-surface explorer."""
-    with st.expander("🌐 3D Sub-surface Visualizer", expanded=False):
-        if "elevation" not in master.columns:
-            st.warning("3D visualization requires an 'elevation' column.")
-            return
-        depth_col = next(
-            (c for c in master.columns if "fromdepth" in c), None
-        )
-        depth_vals = pd.to_numeric(
-            master.get(depth_col, 0) if depth_col else 0, errors="coerce"
-        ).fillna(0)
-        master = master.copy()
-        master["depth_z"] = pd.to_numeric(master["elevation"], errors="coerce").fillna(0) - depth_vals
+    """Render the 3D sub-surface explorer using Plotly."""
+    if "elevation" not in master.columns:
+        st.warning("3D visualization requires an 'elevation' column.")
+        return
+    depth_col = next(
+        (c for c in master.columns if "fromdepth" in c), None
+    )
+    depth_vals = pd.to_numeric(
+        master.get(depth_col, 0) if depth_col else 0, errors="coerce"
+    ).fillna(0)
+    master = master.copy()
+    master["depth_z"] = pd.to_numeric(master["elevation"], errors="coerce").fillna(0) - depth_vals
 
-        # Ensure size_col is valid for Plotly (must be >= 0 and non-NaN)
-        if treo_col and treo_col in master.columns and master[treo_col].notna().any():
-            size_col = "size_viz"
-            master[size_col] = pd.to_numeric(master[treo_col], errors="coerce").fillna(0).clip(lower=0)
-            # Normalize for visualization if too large
-            if master[size_col].max() > 1000:
-                master[size_col] = np.log1p(master[size_col])
-        else:
-            size_col = "score_100" # Fallback to AI score for sizing
+    if treo_col and treo_col in master.columns and master[treo_col].notna().any():
+        size_col = "size_viz"
+        master[size_col] = pd.to_numeric(master[treo_col], errors="coerce").fillna(0).clip(lower=0)
+        if master[size_col].max() > 1000:
+            master[size_col] = np.log1p(master[size_col])
+    else:
+        size_col = "score_100" 
 
-        hover_col = "companyholeid" if "companyholeid" in master.columns else None
+    hover_col = "companyholeid" if "companyholeid" in master.columns else None
 
-        fig_3d = px.scatter_3d(
-            master, x="lon", y="lat", z="depth_z",
-            color="score_100", size=size_col,
-            hover_name=hover_col,
-            labels={"depth_z": "Elevation (m)"},
-            color_continuous_scale="Turbo",
-            title="Sub-surface Prospectivity Heatmap",
-        )
-        fig_3d.update_layout(scene=dict(aspectmode="data"), height=600)
-        st.plotly_chart(fig_3d, use_container_width=True)
+    fig_3d = px.scatter_3d(
+        master, x="lon", y="lat", z="depth_z",
+        color="score_100", size=size_col,
+        hover_name=hover_col,
+        labels={"depth_z": "Elevation (m)", "score_100": "AI Score"},
+        color_continuous_scale="Viridis",
+        template="plotly_dark",
+    )
+    fig_3d.update_layout(
+        scene=dict(
+            aspectmode="data",
+            xaxis=dict(backgroundcolor="rgba(0,0,0,0)"),
+            yaxis=dict(backgroundcolor="rgba(0,0,0,0)"),
+            zaxis=dict(backgroundcolor="rgba(0,0,0,0)")
+        ),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=700
+    )
+    st.plotly_chart(fig_3d, use_container_width=True)
 
 
 def _generate_pdf(result: dict, master: pd.DataFrame) -> bytes:
@@ -272,52 +389,62 @@ def _render_downloads(result: dict, master: pd.DataFrame, pipe) -> None:
 
 
 def _render_model_insights(result: dict) -> None:
-    """Render model comparison and SHAP / feature importance charts."""
+    """Render interactive model comparison and SHAP charts using Plotly."""
     has_scores = bool(result.get("model_scores"))
     has_shap   = bool(result.get("shap_values"))
     if not (has_scores or has_shap):
         return
 
-    st.markdown("---")
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown("### 🧠 AI Model Intelligence")
+    
     ci1, ci2 = st.columns(2)
 
     with ci1:
         if has_scores:
-            confidence = result.get("confidence", 0) * 100
-            st.markdown(f"#### Model confidence: **{confidence:.1f}%**")
-            st.markdown("#### Model comparison")
+            st.markdown("#### Performance Benchmark")
             ms = dict(result["model_scores"])
             ms["Ensemble"] = result["cv_r2"]
-            for name, r2 in sorted(ms.items(), key=lambda x: -x[1]):
-                bar = "█" * max(0, int(r2 * 30))
-                st.markdown(f"`{name.upper():<10}` **{r2:+.4f}** {bar}")
+            
+            # Create Plotly bar chart
+            df_ms = pd.DataFrame([{"Model": k.upper(), "R2 Score": v} for k, v in ms.items()])
+            df_ms = df_ms.sort_values("R2 Score", ascending=True)
+            
+            fig = px.bar(
+                df_ms, y="Model", x="R2 Score", orientation='h',
+                color="R2 Score", color_continuous_scale="Viridis",
+                template="plotly_dark", height=300
+            )
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0,r=0,t=0,b=0))
+            st.plotly_chart(fig, use_container_width=True)
 
     with ci2:
         if has_shap:
-            st.markdown("#### AI Reasoning (SHAP Impact)")
+            st.markdown("#### Feature Influence (SHAP)")
             shap_data = result["shap_values"]
-            max_val = max(shap_data.values()) if shap_data else 1
-            for feat, val in sorted(shap_data.items(), key=lambda x: -x[1]):
-                bar = "█" * max(1, int(val / max_val * 40))
-                st.markdown(f"`{feat[:18]:<18}` {bar}")
+            df_shap = pd.DataFrame([{"Feature": k, "Impact": v} for k, v in shap_data.items()])
+            df_shap = df_shap.sort_values("Impact", ascending=True).tail(10)
+            
+            fig_shap = px.bar(
+                df_shap, y="Feature", x="Impact", orientation='h',
+                template="plotly_dark", height=300,
+                color_discrete_sequence=['#D4AF37']
+            )
+            fig_shap.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0,r=0,t=0,b=0))
+            st.plotly_chart(fig_shap, use_container_width=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════
 # SIDEBAR
 # ═══════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("## ⛏️ Geo-AI-India")
-    st.markdown("**Mineral Exploration AI**")
+    st.markdown("## 🛰️ Geo-AI India")
+    st.markdown("<div style='font-size:0.8rem; color:#888; margin-top:-10px'>Strategic Exploration Engine</div>", unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("**Accepts any format**")
-    for line in [
-        "Drillhole: CSV, XLS, XLSX", "Geophysics: TIF, ERS, GRD",
-        "Geology: SHP, GeoJSON", "Satellite: JP2, ECW",
-        "Topography: ASC, XYZ", "Archives: ZIP, TAR",
-    ]:
-        st.markdown(f"- {line}")
-    st.markdown("---")
-
+    
+    st.markdown("##### 🧬 Collective Intelligence")
     # Show trained deposits from registry
     try:
         reg_path = Path(OUTPUT_DIR) / "deposit_registry.json"
@@ -325,44 +452,63 @@ with st.sidebar:
             reg = json.loads(reg_path.read_text())
             deposits = reg.get("deposits", {})
             if deposits:
-                st.markdown("**Trained deposits:**")
                 for dep_name, info in deposits.items():
                     v = info["versions"][-1]
-                    bg, fg = LAYER_COLOURS["geophysics"]
                     st.markdown(
-                        f'<span class="badge" style="background:{bg};color:{fg}">'
-                        f"{dep_name}</span> R²={v['cv_r2']}",
+                        f'<div style="background:rgba(212,175,55,0.1); border:1px solid rgba(212,175,55,0.2); '
+                        f'border-radius:6px; padding:10px; margin-bottom:8px">'
+                        f'<div style="font-size:0.7rem; color:#888; text-transform:uppercase">Deposit</div>'
+                        f'<div style="font-size:0.9rem; color:var(--primary); font-weight:600">{dep_name.replace("_"," ").title()}</div>'
+                        f'<div style="font-size:0.75rem; margin-top:4px">R² Score: <b>{v["cv_r2"]:.3f}</b></div>'
+                        f'</div>',
                         unsafe_allow_html=True,
                     )
     except Exception:
-        pass
+        st.caption("Intelligence registry unavailable")
 
-    st.caption(f"v{VERSION}")
+    st.markdown("---")
+    st.markdown("##### 📦 Supported Archives")
+    st.markdown(
+        "<div style='font-size:0.75rem; color:#777'>"
+        "● Drillhole (CSV, XLS, XLSX)<br>"
+        "● Geophysics (TIF, ERS, GRD)<br>"
+        "● Geology (SHP, GeoJSON)<br>"
+        "● Satellite (JP2, ECW)<br>"
+        "● Archives (ZIP, TAR, GZ)"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    st.markdown("---")
+    st.caption(f"Engine v{VERSION}")
 
 # ═══════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════
-st.markdown("# Geo-AI-India — Mineral Exploration AI")
+st.markdown("<h1>Geo-AI India — Strategic Intelligence</h1>", unsafe_allow_html=True)
 st.markdown(
-    "The future of intelligent mineral targeting. Upload raw exploration data "
-    "from any deposit to receive a geologically-validated prospectivity map "
-    "and ranked drill targets."
+    '<div style="color:#AAA; font-size:1.1rem; margin-bottom:2rem; max-width:800px">'
+    "Harnessing the world's leading mineral AI to de-risk exploration. "
+    "Upload raw geological, geophysical, or satellite data to generate "
+    "precision-targeted prospectivity maps."
+    "</div>", 
+    unsafe_allow_html=True
 )
-st.markdown("---")
 
 # ═══════════════════════════════════════════════════════════════
 # FILE UPLOAD
 # ═══════════════════════════════════════════════════════════════
-st.markdown("### Upload deposit data")
-col_upload, col_name = st.columns([3, 1])
-with col_upload:
-    uploaded = st.file_uploader(
-        "Any files — CSV, TIF, SHP, ZIP, XLS, JP2, or anything else",
-        accept_multiple_files=True, type=None, label_visibility="collapsed",
-    )
-with col_name:
-    dep_name = st.text_input("Deposit name (optional)",
-                             placeholder="e.g. mount_weld")
+with st.container():
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown("### 🛰️ Data Ingestion Portal")
+    col_upload, col_name = st.columns([3, 1])
+    with col_upload:
+        uploaded = st.file_uploader(
+            "Drop your assets here (CSV, TIF, SHP, ZIP, etc.)",
+            accept_multiple_files=True, type=None, label_visibility="collapsed",
+        )
+    with col_name:
+        dep_name = st.text_input("Deposit Name", placeholder="e.g. mountain_pass")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════
 # MAIN PIPELINE EXECUTION
@@ -457,13 +603,16 @@ if uploaded:
                 st.warning(f"Data health error: {e}")
 
             try:
-                st.markdown("#### Prospectivity map")
+                st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+                st.markdown("#### 🗺️ Prospectivity Heatmap")
                 _render_map(master, treo_col)
+                st.markdown('</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.warning(f"Map rendering error: {e}")
 
             try:
-                st.markdown("#### Top 20 drill targets")
+                st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+                st.markdown("#### 🎯 Priority Drill Targets")
                 show_cols = [
                     c for c in ["companyholeid", "lat", "lon", "score_100",
                                 treo_col, "depth_score"]
@@ -471,12 +620,17 @@ if uploaded:
                 ]
                 st.dataframe(
                     master.nlargest(20, "score_100")[show_cols],
+                    use_container_width=True
                 )
+                st.markdown('</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.warning(f"Targets table error: {e}")
 
             try:
+                st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+                st.markdown("#### 🌐 3D Sub-surface Explorer")
                 _render_3d_visualiser(master, treo_col)
+                st.markdown('</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.warning(f"3D visualizer error: {e}")
 
@@ -501,26 +655,30 @@ if uploaded:
             )
 
 else:
-    # ── Empty state ────────────────────────────────────────────
+    # ── Empty state (Landing Page) ────────────────────────────
     st.markdown("""
-<div style="border:1px dashed #3D2E14;border-radius:8px;padding:3rem;
-            text-align:center;color:#6B5535;margin:2rem 0">
-  <div style="font-size:2rem;margin-bottom:1rem">⛏️</div>
-  <div style="font-family:'IBM Plex Mono',monospace;font-size:.9rem;margin-bottom:.5rem">
-    Upload exploration data above to begin
-  </div>
-  <div style="font-size:.8rem">CSV · TIF · SHP · JP2 · XLS · ZIP · TAR · any format</div>
-</div>""", unsafe_allow_html=True)
+    <div style="background: rgba(212, 175, 55, 0.05); border: 1px dashed rgba(212, 175, 55, 0.3); 
+                border-radius: 16px; padding: 4rem 2rem; text-align: center; margin-top: 2rem">
+      <div style="font-size: 3.5rem; margin-bottom: 1.5rem">💎</div>
+      <h2 style="color: #FFF; margin-bottom: 1rem">Ready for Discovery</h2>
+      <p style="color: #888; font-size: 1.1rem; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto">
+        Our multi-deposit intelligence engine is primed. Upload your exploration files 
+        above to generate investment-grade targeting reports in minutes.
+      </p>
+      <div style="display: flex; justify-content: center; gap: 2rem; color: var(--primary); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; letter-spacing: 1px">
+        <span>● DRILLHOLE</span>
+        <span>● GEOPHYSICS</span>
+        <span>● RADIOMETRICS</span>
+        <span>● SATELLITE</span>
+      </div>
+    </div>""", unsafe_allow_html=True)
 
-    st.markdown("#### What to upload")
+    st.markdown("### Feature Coverage")
     st.dataframe(
         pd.DataFrame({
-            "File type":       ["Collar CSV", "Assay CSV", "Geophysics TIF",
-                                "Geology SHP", "Satellite JP2"],
-            "Auto-detected as": ["drillhole", "drillhole", "geophysics",
-                                 "geology", "satellite"],
-            "Required?":       ["Yes", "Recommended", "Optional",
-                                "Optional", "Optional"],
+            "Source Layer":    ["Geochemical", "Geophysical", "Remotely Sensed", "Geological", "Topographic"],
+            "Capabilities":    ["Multi-element assaying, LREE/HREE ratios", "Gravity, Magnetics, Radiometrics", "ASTER, Sentinel, Landsat Indices", "Structural mapping, Lithology", "DEM, Slope, Aspect analysis"],
+            "AI Readiness":    ["High", "High", "Medium", "Medium", "Low"]
         }),
         use_container_width=True, hide_index=True,
     )
