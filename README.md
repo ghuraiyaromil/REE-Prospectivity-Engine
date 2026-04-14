@@ -20,10 +20,10 @@
 ### 1. Unified Intake & Auto-Pipeline
 Upload **any format** — Drillhole CSVs, Geophysics TIFs, Geology SHPs, or Satellite JP2s. Our automated pipeline handles coordinate re-projection, feature engineering (log1p, PCA), and IDW pseudo-labelling out of the box.
 
-### 2. High-Performance Ensemble ML
-Our "Global Model" uses an ensemble of **Random Forest, XGBoost, and SVR** stacked via a Ridge meta-learner. 
-- **CV R²**: > 0.85 (on validated datasets)
-- **ROC AUC**: > 0.95
+### 2. High-Performance Ensemble ML (Leakage-Free)
+Our "Global Model" utilizes **Spatial GroupKFold** cross-validation within nested scikit-learn Pipelines (Imputer -> SelectKBest -> Scaler -> Model) to completely eliminate data leakage. The ensemble relies on **Random Forest and Gradient Boosting** stacked via a Ridge meta-learner.
+- **Honest Spatial R²**: ~ 0.68 (Geologically validated generalization on unseen terrain)
+- **Honest Spatial ROC AUC**: > 0.93
 - **Confidence Scoring**: Automatic uncertainty quantification based on ensemble variance.
 
 ### 3. Explainable AI (SHAP Reasoning)
